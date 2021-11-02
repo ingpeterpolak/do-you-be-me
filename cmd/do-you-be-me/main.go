@@ -11,7 +11,7 @@ import (
 func main() {
 	log.Println("Starting do/you API")
 
-	dybmapi.SetupTemplateFolder("../../web/template/")
+	dybmapi.SetupTemplateFolder("./web/template/")
 
 	http.HandleFunc("/", dybmapi.HandleRoot)
 	http.HandleFunc("/hello", dybmapi.HandleHello)
