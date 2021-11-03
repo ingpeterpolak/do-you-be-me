@@ -22,7 +22,18 @@
             "target": {
                 "minikube": {}
             },
-            "watch": false
+            "watch": false,
+            "debug": {
+                "sourceFileMap": {
+                    "${workspaceFolder}": "/do-you-be-me"
+                }
+            }
+        },
+        {
+            "name": "Debug Locally without Docker",
+            "type": "go",
+            "request": "launch",
+            "program": "${workspaceFolder}/cmd/do-you-be-me"
         }
     ]
 }

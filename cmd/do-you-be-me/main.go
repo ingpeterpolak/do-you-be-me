@@ -11,7 +11,15 @@ import (
 func main() {
 	log.Println("Starting do/you API")
 
-	dybmapi.SetupTemplateFolder("./web/template/")
+	dybmapi.SetupTemplateFolder("./")
+
+	// look for the templates elsewhere if we're debugging locally on Windows
+	currentOs := os.Getenv("OS")
+	log.Println("Operatin system:", currentOs)
+
+	if currentOs == "Windows_NT" {
+		dybmapi.SetupTemplateFolder("../../web/template/")
+	}
 
 	http.HandleFunc("/", dybmapi.HandleRoot)
 	http.HandleFunc("/hello", dybmapi.HandleHello)

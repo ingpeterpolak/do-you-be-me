@@ -1,5 +1,5 @@
 # Use base golang image from Docker Hub
-FROM golang:1.17 AS build
+FROM golang:1.16 AS build
 
 WORKDIR /do-you-be-me
 
@@ -9,6 +9,7 @@ COPY go.mod ./
 RUN go mod download
 
 # Copy rest of the application source code
+# COPY . ./
 COPY cmd ./cmd
 COPY internal ./internal
 
@@ -29,7 +30,7 @@ ENV GOTRACEBACK=single
 # Copy template & assets
 WORKDIR /do-you-be-me
 COPY --from=build /app ./app
-COPY web/template/index.gohtml ./web/template/index.gohtml
+COPY web/template/index.gohtml ./index.gohtml
 # COPY assets assets/
 
 ENTRYPOINT ["./app"]
