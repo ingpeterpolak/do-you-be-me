@@ -1,0 +1,23 @@
+.clearer {
+    clear: both;
+}
+
+div.lyrics-main {
+    background: #fcfcfc;
+    padding: 10pt;
+}
+
+div.lyrics-line {
+    background: white;
+    height: 20pt;
+    margin: 15pt;
+    border-bottom: 1pt dotted #ddd;
+}
+
+div.line-number {
+    width: 40pt;
+    padding-right: 10pt;
+    float: left;
+    text-align: right;
+    color: #ccc;
+}

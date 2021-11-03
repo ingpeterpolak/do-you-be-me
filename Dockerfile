@@ -31,6 +31,6 @@ ENV GOTRACEBACK=single
 WORKDIR /do-you-be-me
 COPY --from=build /app ./app
 COPY web/template/index.gohtml ./index.gohtml
-# COPY assets assets/
+COPY web/assets/main.css ./assets/main.css
 
 ENTRYPOINT ["./app"]

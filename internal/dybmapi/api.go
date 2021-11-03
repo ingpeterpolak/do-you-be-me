@@ -5,26 +5,17 @@ import (
 	"html/template"
 	"log"
 	"net/http"
+	"strings"
 )
 
-type IndexData struct {
-	Message string `json:"message"`
-}
+var TemplateFolder string
 
-type Greeting struct {
-	Greeting string `json:"greeting"`
-	Subject  string `json:"subject"`
-	Suffix   string `json:"suffix"`
-}
-
-var templateFolder string
-
-func SetupTemplateFolder(folder string) {
-	templateFolder = folder
+func Setup(templateFolder string) {
+	TemplateFolder = templateFolder
 }
 
 func HandleRoot(w http.ResponseWriter, r *http.Request) {
-	indexTemplate := templateFolder + "index.gohtml"
+	indexTemplate := TemplateFolder + "index.gohtml"
 	t, err := template.ParseFiles(indexTemplate)
 	if err != nil {
 		log.Fatal(err)
@@ -38,15 +29,28 @@ func HandleRoot(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func HandleHello(w http.ResponseWriter, r *http.Request) {
+func HandlePimp(w http.ResponseWriter, r *http.Request) {
 	w.Header().Add("Content-type", "application/json")
 
-	var helloWorld Greeting
-	helloWorld.Greeting = "Hello"
-	helloWorld.Subject = "World"
-	helloWorld.Suffix = " :)"
+	lyrics := r.URL.Query().Get("lyrics")
+	lines := strings.Split(lyrics, "\n")
 
-	result, err := json.MarshalIndent(helloWorld, "", "    ")
+	var pimpedLines []PimpedLine
+	for i, s := range lines {
+
+		line := removeSpecialChars(s)
+
+		var pimpedLine PimpedLine
+		pimpedLine.Number = i + 1
+		pimpedLine.Line = line
+
+		pimpedLines = append(pimpedLines, pimpedLine)
+	}
+
+	var pimpedLyrics PimpedLyrics
+	pimpedLyrics.Lines = pimpedLines
+
+	result, err := json.MarshalIndent(pimpedLyrics, "", "")
 
 	if err != nil {
 		log.Fatal("Can't!")
