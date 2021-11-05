@@ -15,6 +15,8 @@ func Setup(templateFolder string) {
 }
 
 func HandleRoot(w http.ResponseWriter, r *http.Request) {
+	log.Println("Handling /")
+
 	indexTemplate := TemplateFolder + "index.gohtml"
 	t, err := template.ParseFiles(indexTemplate)
 	if err != nil {
@@ -27,9 +29,13 @@ func HandleRoot(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	log.Println("Handling / finished")
 }
 
 func HandlePimp(w http.ResponseWriter, r *http.Request) {
+	log.Println("Handling /pimp")
+
 	w.Header().Add("Content-type", "application/json")
 
 	lyrics := r.URL.Query().Get("lyrics")
@@ -53,8 +59,10 @@ func HandlePimp(w http.ResponseWriter, r *http.Request) {
 	result, err := json.MarshalIndent(pimpedLyrics, "", "")
 
 	if err != nil {
-		log.Fatal("Can't!")
+		log.Fatal("Error:", err)
 	}
 
 	w.Write(result)
+
+	log.Println("Handling /pimp finished")
 }

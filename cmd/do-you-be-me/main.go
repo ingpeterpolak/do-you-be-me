@@ -23,6 +23,7 @@ func mapHandlers() {
 
 	http.HandleFunc("/", dybmapi.HandleRoot)
 	http.HandleFunc("/pimp", dybmapi.HandlePimp)
+	http.HandleFunc("/import", dybmapi.HandleImport)
 }
 
 // setupApi sets the correct template folder for both local debugging and production run

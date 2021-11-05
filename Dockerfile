@@ -4,8 +4,7 @@ FROM golang:1.16 AS build
 WORKDIR /do-you-be-me
 
 # Install dependencies in go.mod and go.sum
-# COPY go.mod go.sum ./
-COPY go.mod ./
+COPY go.mod go.sum ./
 RUN go mod download
 
 # Copy rest of the application source code
