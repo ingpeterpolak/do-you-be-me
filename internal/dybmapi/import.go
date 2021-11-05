@@ -74,7 +74,7 @@ func processUrl(url string) {
 	log.Println("Processing url", url)
 	writtenNgrams := 0
 
-	targetFileName := getNgramTargetFilename(url)
+	targetFileName := getNgramFilenameFromUrl(url)
 	gcTestReader, err := bucket.Object(targetFileName).NewReader(ctx)
 	if err == nil {
 		gcTestReader.Close()
@@ -163,47 +163,48 @@ func getAndProcessFiles(urls []string, n, letter string, maxUrls int) ImportData
 
 	var importData ImportData
 
-	var urlsToProcess []string
-	urlsProcessed := 0
-	for _, url := range urls {
-		if isUrlForNgramAndLetter(url, n, letter) {
-			urlsToProcess = append(urlsToProcess, url)
+	targetFilename := getNgramTargetFilename(n, letter)
+	targetObject := bucket.Object(targetFilename)
 
-			urlsProcessed++
-			if urlsProcessed == maxUrls {
-				break
+	// let's check if the final file exists
+	attrs, err := targetObject.Attrs(ctx)
+	if err == nil {
+		log.Println("No need to do anything, the final file", targetFilename, "already exists and its size is", attrs.Size)
+	} else {
+		var urlsToProcess []string
+		urlsProcessed := 0
+		for _, url := range urls {
+			if isUrlForNgramAndLetter(url, n, letter) {
+				urlsToProcess = append(urlsToProcess, url)
+
+				urlsProcessed++
+				if urlsProcessed == maxUrls {
+					break
+				}
 			}
 		}
+
+		var wg sync.WaitGroup
+		wg.Add(len(urlsToProcess))
+
+		for _, url := range urlsToProcess {
+			importData.ProcessedUrls = append(importData.ProcessedUrls, url)
+			go func(url string) {
+				processUrl(url)
+				defer wg.Done()
+			}(url)
+
+		}
+
+		wg.Wait()
+
+		log.Println("Finished processing urls. Processed", urlsProcessed, "urls with", n, "-grams starting with", letter)
 	}
-
-	var wg sync.WaitGroup
-	wg.Add(len(urlsToProcess))
-
-	for _, url := range urlsToProcess {
-		importData.ProcessedUrls = append(importData.ProcessedUrls, url)
-		go func(url string) {
-			processUrl(url)
-			defer wg.Done()
-		}(url)
-
-	}
-
-	wg.Wait()
-
-	log.Println("Finished processing urls. Processed", urlsProcessed, "urls with", n, "-grams starting with", letter)
 
 	return importData
 }
 
-// HandleImport handles the /import URL
-func HandleImport(w http.ResponseWriter, r *http.Request) {
-	log.Println("Handling /import")
-
-	w.Header().Add("Content-type", "application/json")
-
-	bucketName := "dybm-corpus-1"
-	urlsFilename := "google-ngrams-urls.txt"
-
+func prepareContext() []string {
 	ctx = context.Background()
 
 	client, err := storage.NewClient(ctx)
@@ -223,7 +224,15 @@ func HandleImport(w http.ResponseWriter, r *http.Request) {
 		log.Fatal("Unable to read from file: ", err)
 	}
 
-	urls := strings.Split(string(urlsText), "\r\n")
+	return strings.Split(string(urlsText), "\r\n")
+}
+
+// HandleImport handles the /import URL
+func HandleImport(w http.ResponseWriter, r *http.Request) {
+	log.Println("Handling /import")
+
+	w.Header().Add("Content-type", "application/json")
+	urls := prepareContext()
 
 	letter := r.URL.Query().Get("letter")
 	n := r.URL.Query().Get("n")
@@ -244,4 +253,96 @@ func HandleImport(w http.ResponseWriter, r *http.Request) {
 	w.Write(resultJson)
 
 	log.Println("Handling /import finished")
+}
+
+// HandleImport handles the /import URL
+func HandleCombineImport(w http.ResponseWriter, r *http.Request) {
+	log.Println("Handling /combine-import")
+
+	w.Header().Add("Content-type", "application/json")
+
+	urls := prepareContext()
+
+	var combineImportData CombineImportData
+
+	//var cLetters = [...]string{"c"}
+	//for n := 2; n <= 2; n++ {
+	//for _, letter := range cLetters {
+	for n := 2; n <= 5; n++ {
+		for _, letter := range validLetters {
+			stringN := strconv.Itoa(n)
+			targetFilename := getNgramTargetFilename(stringN, letter)
+			targetObject := bucket.Object(targetFilename)
+
+			// let's check if the file exists
+			attrs, err := targetObject.Attrs(ctx)
+			if err == nil {
+				log.Println("No need to process target file", targetFilename, "as it already exists and its size is", attrs.Size)
+				continue
+			}
+
+			var sourceFiles []string
+			var sourceObjects []*storage.ObjectHandle
+
+			var totalSize int64 = 0
+			allFilesExist := true
+			log.Println("Checking if all source files exist for", targetFilename)
+
+			for _, url := range urls {
+				if isUrlForNgramAndLetter(url, stringN, letter) {
+					sourceFilename := getNgramFilenameFromUrl(url)
+					sourceObject := bucket.Object(sourceFilename)
+
+					// let's check if the file exists
+					attrs, err := sourceObject.Attrs(ctx)
+					if err != nil {
+						log.Println("The source file", sourceFilename, "does not exist")
+						allFilesExist = false
+						break
+					} else {
+						log.Println("The source file", sourceFilename, "exists and its size is", attrs.Size)
+						totalSize += attrs.Size
+					}
+
+					sourceFiles = append(sourceFiles, sourceFilename)
+					sourceObjects = append(sourceObjects, sourceObject)
+				}
+			}
+
+			if allFilesExist {
+				log.Println("All the source files exist and their total size is", totalSize, "- let's try composing them together")
+				_, err = targetObject.ComposerFrom(sourceObjects...).Run(ctx)
+				if err != nil {
+					log.Println("Error when composing:", err)
+				} else {
+					var combinedFile CombinedFile
+					combinedFile.N = n
+					combinedFile.Letter = letter
+					combinedFile.SourceFiles = sourceFiles
+					combinedFile.TargetFile = targetFilename
+					combineImportData.CombinedFiles = append(combineImportData.CombinedFiles, combinedFile)
+
+					log.Println("Composing successful for", targetFilename, " - deleting source files")
+					for _, objectToDelete := range sourceObjects {
+						err := objectToDelete.Delete(ctx)
+						if err != nil {
+							log.Println("Coudln't delete file", objectToDelete.ObjectName())
+						}
+					}
+				}
+			} else {
+				log.Println("Not all source files exist for", targetFilename)
+			}
+		}
+	}
+
+	resultJson, err := json.Marshal(combineImportData)
+
+	if err != nil {
+		log.Fatal("Error when JSONing the result: ", err)
+	}
+
+	w.Write(resultJson)
+
+	log.Println("Handling /combine-import finished")
 }
