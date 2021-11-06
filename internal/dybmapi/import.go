@@ -277,6 +277,12 @@ func prepareContext() []string {
 // HandleImport handles the /import URL
 func HandleImport(w http.ResponseWriter, r *http.Request) {
 	log.Println("START handling", r.URL)
+	log.Println("Proto", r.Proto, "TLS", r.TLS, "Host", r.Host)
+
+	/*if r.TLS == nil && r.Host != "localhost:8080" {
+		log.Println("ERROR: Not handling non-https outside localhost", r.URL)
+		return
+	}*/
 
 	currentTime := time.Now()
 	requestTime := fmt.Sprintf("%02d:%02d:%02d", currentTime.Hour(), currentTime.Minute(), currentTime.Second())
@@ -310,11 +316,16 @@ func HandleImport(w http.ResponseWriter, r *http.Request) {
 // It combines individual ngram files into one ngram file per letter using the Composer
 func HandleCombineImport(w http.ResponseWriter, r *http.Request) {
 	log.Println("START handling", r.URL)
+	log.Println("Proto", r.Proto, "TLS", r.TLS, "Host", r.Host)
+
+	/*	if r.TLS == nil && r.Host != "localhost:8080" {
+		log.Println("ERROR: Not handling non-https outside localhost", r.URL)
+		return
+	}*/
 
 	w.Header().Add("Content-type", "application/json")
 
 	urls := prepareContext()
-
 	var combineImportData CombineImportData
 
 	//var cLetters = [...]string{"c"}
@@ -363,7 +374,9 @@ func HandleCombineImport(w http.ResponseWriter, r *http.Request) {
 
 			if allFilesExist {
 				log.Println("All the source files exist and their total size is", totalSize, "- let's try composing them together")
-				_, err = targetObject.ComposerFrom(sourceObjects...).Run(ctx)
+				composer := targetObject.ComposerFrom(sourceObjects...)
+				composer.ObjectAttrs.ContentType = "text/csv"
+				_, err = composer.Run(ctx)
 				if err != nil {
 					log.Println("Error when composing:", err)
 				} else {
