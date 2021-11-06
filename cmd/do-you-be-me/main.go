@@ -2,6 +2,7 @@ package main
 
 import (
 	"github.com/ingpeterpolak/do-you-be-me/internal/dybmapi"
+	"github.com/ingpeterpolak/do-you-be-me/internal/dybmimport"
 
 	"log"
 	"net/http"
@@ -23,8 +24,11 @@ func mapHandlers() {
 
 	http.HandleFunc("/", dybmapi.HandleRoot)
 	http.HandleFunc("/pimp", dybmapi.HandlePimp)
-	http.HandleFunc("/import", dybmapi.HandleImport)
-	http.HandleFunc("/combine-import", dybmapi.HandleCombineImport)
+
+	http.HandleFunc("/import", dybmimport.HandleImport)
+	http.HandleFunc("/combine-import", dybmimport.HandleCombineImport)
+
+	http.HandleFunc("/process", dybmimport.HandleProcess)
 }
 
 // setupApi sets the correct template folder for both local debugging and production run
@@ -37,6 +41,18 @@ func setupApi() {
 	}
 
 	dybmapi.Setup(templateFolder)
+}
+
+// setupApi sets the correct template folder for both local debugging and production run
+func setupImport() {
+	dataFolder := "./data/"
+
+	// look for the templates elsewhere if we're debugging locally on Windows
+	if localDebug {
+		dataFolder = "../../internal/dybmimport/data/"
+	}
+
+	dybmimport.Setup(dataFolder)
 }
 
 // startServer checks the correct port and starts the http server
@@ -63,6 +79,7 @@ func main() {
 	}
 
 	setupApi()
+	setupImport()
 	mapHandlers()
 
 	err := startServer()

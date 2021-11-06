@@ -1,4 +1,4 @@
-package dybmapi
+package dybmimport
 
 import (
 	"bufio"
@@ -21,6 +21,12 @@ import (
 
 var ctx context.Context
 var bucket *storage.BucketHandle
+
+var DataFolder string
+
+func Setup(dataFolder string) {
+	DataFolder = dataFolder
+}
 
 // processNgram processes one ngram and either adjusts it for the final file
 // or resets it to an empty string if it's not suitable for the final file
@@ -137,6 +143,7 @@ func processUrl(url string, id string) {
 	bufferLength := 0
 	bufferCapacity := 100000
 	var linesRead int64 = 0
+	var linesWritten int = 0
 
 	var ngram Ngram
 	var previousNgram Ngram
@@ -147,8 +154,8 @@ func processUrl(url string, id string) {
 	for scanner.Scan() {
 		line := scanner.Bytes()
 		linesRead++
-		if linesRead%1000000000 == 0 {
-			log.Println("Another 1G lines", targetRawFileName, "total", linesRead, id)
+		if linesRead%100000000 == 0 {
+			log.Println("Another 100M lines", targetRawFileName, "total", linesRead, id)
 		}
 
 		// format: ngram TAB year TAB match_count TAB volume_count NEWLINE
@@ -166,6 +173,10 @@ func processUrl(url string, id string) {
 				if bufferLength > bufferCapacity {
 					log.Println("Buffer flush", bufferLength, "to", targetFileName, id)
 					gcWriter.Write([]byte(bufferBuilder.String()))
+
+					linesWritten += bufferLength
+					log.Println("Another ", linesWritten, "lines written yet", targetFileName, id)
+
 					bufferBuilder.Reset()
 					bufferLength = 0
 				}
@@ -251,7 +262,7 @@ func getAndProcessFiles(urls []string, n, letter string, maxUrls int, requestTim
 }
 
 // prepareContext prepares the basic context to work with Cloud Storage
-func prepareContext() []string {
+func prepareContext() {
 	ctx = context.Background()
 
 	client, err := storage.NewClient(ctx)
@@ -260,6 +271,10 @@ func prepareContext() []string {
 	}
 
 	bucket = client.Bucket(bucketName)
+}
+
+// prepareContext prepares the basic context to work with Cloud Storage
+func readUrlFile() []string {
 	urlFileReader, err := bucket.Object(urlsFictionFilename).NewReader(ctx)
 	if err != nil {
 		log.Fatal("Unable to open urls", urlsFictionFilename, err)
@@ -289,7 +304,8 @@ func HandleImport(w http.ResponseWriter, r *http.Request) {
 	log.Println("Time", requestTime)
 
 	w.Header().Add("Content-type", "application/json")
-	urls := prepareContext()
+	prepareContext()
+	urls := readUrlFile()
 
 	letter := r.URL.Query().Get("letter")
 	n := r.URL.Query().Get("n")
@@ -325,7 +341,8 @@ func HandleCombineImport(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Add("Content-type", "application/json")
 
-	urls := prepareContext()
+	prepareContext()
+	urls := readUrlFile()
 	var combineImportData CombineImportData
 
 	//var cLetters = [...]string{"c"}
@@ -410,4 +427,29 @@ func HandleCombineImport(w http.ResponseWriter, r *http.Request) {
 	w.Write(resultJson)
 
 	log.Println("DONE handling", r.URL)
+}
+
+// HandleProcess handles the /process URL and does all the work
+// It takes all the imported ngrams and tries to guess:
+//	- the number of syllables
+//	- th pronunciation
+func HandleProcess(w http.ResponseWriter, r *http.Request) {
+	log.Println("START handling", r.URL)
+	log.Println("Proto", r.Proto, "TLS", r.TLS, "Host", r.Host)
+
+	/*	if r.TLS == nil && r.Host != "localhost:8080" {
+		log.Println("ERROR: Not handling non-https outside localhost", r.URL)
+		return
+	}*/
+
+	w.Header().Add("Content-type", "application/json")
+
+	prepareContext()
+
+	testWords := [...]string{"metronome", "I", "of", "mud", "can't", "testosterone", "twerk", "mom", "committee", "employee", "doable", "peetee", "goatsie", "vogue", "monologue", "college", "colleague"}
+	for _, word := range testWords {
+		syllablesCount, knownDataUsed := countSyllables(word)
+		log.Println(word, "has", syllablesCount, "syllables. Known:", knownDataUsed)
+	}
+
 }

@@ -44,7 +44,7 @@ func HandlePimp(w http.ResponseWriter, r *http.Request) {
 	var pimpedLines []PimpedLine
 	for i, s := range lines {
 
-		line := removeSpecialChars(s)
+		line := removeSpecialCharsFromLyrics(s)
 
 		var pimpedLine PimpedLine
 		pimpedLine.Number = i + 1
