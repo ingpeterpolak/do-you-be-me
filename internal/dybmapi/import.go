@@ -2,15 +2,19 @@ package dybmapi
 
 import (
 	"bufio"
+	"bytes"
 	"compress/gzip"
 	"context"
 	"encoding/json"
+	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"cloud.google.com/go/storage"
 )
@@ -18,10 +22,12 @@ import (
 var ctx context.Context
 var bucket *storage.BucketHandle
 
-func processText(text string) string {
+// processNgram processes one ngram and either adjusts it for the final file
+// or resets it to an empty string if it's not suitable for the final file
+func processNgram(ngram string) string {
 	// not necessary, it seems:
 	// result := replaceGoogleNgramKeywords(text)
-	result := text
+	result := ngram
 
 	if !isAllLetters(result) {
 		result = ""
@@ -32,7 +38,8 @@ func processText(text string) string {
 // prepareNgram takes the data from one line, processes it and prepares an Ngram that it returns
 // it also returns true if the ngram is the same as the previous one so that the calling function can handle it
 // if there was no previous ngram, it returns false
-func prepareNgram(text, yearText, matchesText, volumesText string, ngram *Ngram, previousNgram *Ngram) bool {
+func prepareNgram(textBytes, yearBytes, matchesBytes, volumesBytes []byte, ngram *Ngram, previousNgram *Ngram) bool {
+	text := string(textBytes)
 	ngram.OriginalText = text
 	isTheSame := false
 
@@ -43,15 +50,15 @@ func prepareNgram(text, yearText, matchesText, volumesText string, ngram *Ngram,
 		ngram.Text = previousNgram.Text
 		ngram.Frequency = previousNgram.Frequency
 	} else {
-		ngram.Text = processText(text)
+		ngram.Text = processNgram(text)
 		ngram.Frequency = 0
 	}
 
 	// if the text is empty, it means it doesn't make sense and we don't want it; for example "B.B. --_."
 	if ngram.Text != "" {
-		year, _ := strconv.Atoi(yearText)
-		matches, _ := strconv.Atoi(matchesText)
-		volumes, _ := strconv.Atoi(volumesText)
+		year := int(yearBytes[0]-48)*1000 + int(yearBytes[1]-48)*100 + int(yearBytes[2]-48)*10 + int(yearBytes[3]-48)
+		matches := convertBytesNumberToInt(matchesBytes)
+		volumes := convertBytesNumberToInt(volumesBytes)
 
 		yearBonus := 1
 		if year > 1980 {
@@ -70,49 +77,82 @@ func prepareNgram(text, yearText, matchesText, volumesText string, ngram *Ngram,
 	return isTheSame
 }
 
-func processUrl(url string) {
-	log.Println("Processing url", url)
+// processUrl processes one URL and it's meant to run concurrently.
+// it can handle files the size of tens of gigabytes within one hour timeout (tested)
+func processUrl(url string, id string) {
+	log.Println("Processing url", url, id)
 	writtenNgrams := 0
 
-	targetFileName := getNgramFilenameFromUrl(url)
-	gcTestReader, err := bucket.Object(targetFileName).NewReader(ctx)
+	targetRawFileName := getNgramFilenameFromUrl(url, true)
+	targetFileName := getNgramFilenameFromUrl(url, false)
+	targetObject := bucket.Object(targetFileName)
+	attrs, err := targetObject.Attrs(ctx)
 	if err == nil {
-		gcTestReader.Close()
-		log.Println("No need to process url", url, ", the file", targetFileName, "already exists")
+		log.Println("Url", url, "already here:", targetFileName, "size", attrs.Size, id)
 		return
 	}
 
-	gcWriter := bucket.Object(targetFileName).NewWriter(ctx)
+	targetRawObject := bucket.Object(targetRawFileName)
+	attrs, err = targetRawObject.Attrs(ctx)
+	if err == nil {
+		log.Println("Gzip already unzipped:", targetRawFileName, "size", attrs.Size, id)
+	} else {
+		response, err := http.Get(url)
+		if err != nil {
+			log.Fatal("Unable to Get URL", url, id, err)
+		}
+		defer response.Body.Close()
+
+		gzReader, err := gzip.NewReader(response.Body)
+		if err != nil {
+			log.Fatal("Unable to open gzip", url, id, err)
+		}
+		defer gzReader.Close()
+
+		gcRawWriter := targetRawObject.NewWriter(ctx)
+		gcRawWriter.ContentType = "text/csv"
+
+		log.Println("Extracting gzip", url, "to", targetRawFileName, id)
+		if _, err = io.Copy(gcRawWriter, gzReader); err != nil {
+			log.Fatal("Unable to copy gzip", url, "to", targetRawFileName, id, err)
+		}
+		if err := gcRawWriter.Close(); err != nil {
+			log.Fatal("Unable to close raw file", targetRawFileName, id, err)
+		}
+		log.Println("Extract OK", targetRawFileName, id)
+	}
+
+	gcReader, err := targetRawObject.NewReader(ctx)
+	if err != nil {
+		log.Fatal("Unable to open raw", targetRawFileName, id, err)
+	}
+	defer gcReader.Close()
+
+	gcWriter := targetObject.NewWriter(ctx)
 	gcWriter.ContentType = "text/csv"
-
-	response, err := http.Get(url)
-	if err != nil {
-		log.Fatal("Unable to Get URL: ", err)
-	}
-	defer response.Body.Close()
-
-	reader, err := gzip.NewReader(response.Body)
-	if err != nil {
-		log.Fatal("Unable to open gzipped file for reading: ", err)
-	}
-	defer reader.Close()
 
 	var isTheSame bool
 
 	var bufferBuilder strings.Builder
 	bufferLength := 0
 	bufferCapacity := 100000
+	var linesRead int64 = 0
 
 	var ngram Ngram
 	var previousNgram Ngram
+	var tabSeparator = [...]byte{9}
 
-	scanner := bufio.NewScanner(reader)
-	log.Println("Starting to process ngrams for", targetFileName)
+	scanner := bufio.NewScanner(gcReader)
+	log.Println("Scanning", targetFileName, id)
 	for scanner.Scan() {
-		line := scanner.Text()
+		line := scanner.Bytes()
+		linesRead++
+		if linesRead%1000000000 == 0 {
+			log.Println("Another 1G lines", targetRawFileName, "total", linesRead, id)
+		}
 
 		// format: ngram TAB year TAB match_count TAB volume_count NEWLINE
-		fragments := strings.Split(line, "\t")
+		fragments := bytes.Split(line, tabSeparator[:])
 		if len(fragments) >= 4 {
 			isTheSame = prepareNgram(fragments[0], fragments[1], fragments[2], fragments[3], &ngram, &previousNgram)
 
@@ -124,7 +164,7 @@ func processUrl(url string) {
 
 				bufferLength++
 				if bufferLength > bufferCapacity {
-					log.Println("Buffer full, flushing", bufferLength, "ngrams to", targetFileName)
+					log.Println("Buffer flush", bufferLength, "to", targetFileName, id)
 					gcWriter.Write([]byte(bufferBuilder.String()))
 					bufferBuilder.Reset()
 					bufferLength = 0
@@ -137,12 +177,12 @@ func processUrl(url string) {
 			previousNgram.Text = ngram.Text
 			previousNgram.Frequency = ngram.Frequency
 		} else {
-			log.Println("WARNING: Found a line with not enough TABs:", line)
+			log.Println("WARNING: Found a line with not enough TABs:", line, id)
 		}
 	}
 
 	if bufferLength > 0 {
-		log.Println("Flushing the rest of the buffer -", bufferLength, "ngrams")
+		log.Println("Final buffer flush", bufferLength, "to", targetFileName, id)
 		gcWriter.Write([]byte(bufferBuilder.String()))
 		bufferBuilder.Reset()
 	}
@@ -152,14 +192,20 @@ func processUrl(url string) {
 	}
 
 	if err := gcWriter.Close(); err != nil {
-		log.Fatalf("Unable to close Cloud Storage file %q: %v", targetFileName, err)
+		log.Fatal("Unable to close", targetFileName, id, err)
+	} else {
+		// successfully writen => we can remove the raw file
+		targetRawObject.Delete(ctx)
+		log.Println("Deleted raw", targetRawFileName, id)
 	}
 
-	log.Println("Finished processing url", url, "with", writtenNgrams, "ngrams were written into", targetFileName)
+	log.Println("======= Finished processing url", url, "with", writtenNgrams, "ngrams were written into", targetFileName, id)
 }
 
-func getAndProcessFiles(urls []string, n, letter string, maxUrls int) ImportData {
-	log.Println("Processing urls with", n, "grams starting with", letter)
+// getAndProcessFiles gets the source Google Books ngram files and processes them
+// the resulting files are cleansed - meaning each ngram only appears once and all the ngrams featuring non-letters are omitted
+func getAndProcessFiles(urls []string, n, letter string, maxUrls int, requestTime string) ImportData {
+	log.Println("Processing urls", n, letter, "max", maxUrls, requestTime)
 
 	var importData ImportData
 
@@ -169,7 +215,7 @@ func getAndProcessFiles(urls []string, n, letter string, maxUrls int) ImportData
 	// let's check if the final file exists
 	attrs, err := targetObject.Attrs(ctx)
 	if err == nil {
-		log.Println("No need to do anything, the final file", targetFilename, "already exists and its size is", attrs.Size)
+		log.Println("Final file", targetFilename, "exists, size", attrs.Size)
 	} else {
 		var urlsToProcess []string
 		urlsProcessed := 0
@@ -187,23 +233,24 @@ func getAndProcessFiles(urls []string, n, letter string, maxUrls int) ImportData
 		var wg sync.WaitGroup
 		wg.Add(len(urlsToProcess))
 
-		for _, url := range urlsToProcess {
+		for id, url := range urlsToProcess {
 			importData.ProcessedUrls = append(importData.ProcessedUrls, url)
-			go func(url string) {
-				processUrl(url)
+			go func(url string, id string) {
+				processUrl(url, id)
 				defer wg.Done()
-			}(url)
+			}(url, fmt.Sprintf("id%02d t%s", id+1, requestTime))
 
 		}
 
 		wg.Wait()
 
-		log.Println("Finished processing urls. Processed", urlsProcessed, "urls with", n, "-grams starting with", letter)
+		log.Println("DONE.", urlsProcessed, "urls with", n, "-grams starting with", letter)
 	}
 
 	return importData
 }
 
+// prepareContext prepares the basic context to work with Cloud Storage
 func prepareContext() []string {
 	ctx = context.Background()
 
@@ -213,15 +260,15 @@ func prepareContext() []string {
 	}
 
 	bucket = client.Bucket(bucketName)
-	urlFileReader, err := bucket.Object(urlsFilename).NewReader(ctx)
+	urlFileReader, err := bucket.Object(urlsFictionFilename).NewReader(ctx)
 	if err != nil {
-		log.Fatal("Unable to open file: ", err)
+		log.Fatal("Unable to open urls", urlsFictionFilename, err)
 	}
 	defer urlFileReader.Close()
 
 	urlsText, err := ioutil.ReadAll(urlFileReader)
 	if err != nil {
-		log.Fatal("Unable to read from file: ", err)
+		log.Fatal("Unable to read urls", urlsFictionFilename, err)
 	}
 
 	return strings.Split(string(urlsText), "\r\n")
@@ -229,7 +276,11 @@ func prepareContext() []string {
 
 // HandleImport handles the /import URL
 func HandleImport(w http.ResponseWriter, r *http.Request) {
-	log.Println("Handling /import")
+	log.Println("START handling", r.URL)
+
+	currentTime := time.Now()
+	requestTime := fmt.Sprintf("%02d:%02d:%02d", currentTime.Hour(), currentTime.Minute(), currentTime.Second())
+	log.Println("Time", requestTime)
 
 	w.Header().Add("Content-type", "application/json")
 	urls := prepareContext()
@@ -238,26 +289,27 @@ func HandleImport(w http.ResponseWriter, r *http.Request) {
 	n := r.URL.Query().Get("n")
 	max, err := strconv.Atoi(r.URL.Query().Get("max"))
 	if err != nil {
-		log.Fatal("Unable to get the max number of files: ", err)
+		log.Fatal("Unable to get the max number of files from query: ", err, requestTime)
 	}
 
-	importData := getAndProcessFiles(urls, n, letter, max)
+	importData := getAndProcessFiles(urls, n, letter, max, requestTime)
 
-	importData.UrlsFilename = urlsFilename
+	importData.UrlsFilename = urlsFictionFilename
 	resultJson, err := json.Marshal(importData)
 
 	if err != nil {
-		log.Fatal("Error when JSONing the result: ", err)
+		log.Fatal("Error when JSONing the result: ", err, requestTime)
 	}
 
 	w.Write(resultJson)
 
-	log.Println("Handling /import finished")
+	log.Println("DONE handling", r.URL, requestTime)
 }
 
-// HandleImport handles the /import URL
+// HandleCombineImport handles the /combine-import URL and does all the work
+// It combines individual ngram files into one ngram file per letter using the Composer
 func HandleCombineImport(w http.ResponseWriter, r *http.Request) {
-	log.Println("Handling /combine-import")
+	log.Println("START handling", r.URL)
 
 	w.Header().Add("Content-type", "application/json")
 
@@ -290,7 +342,7 @@ func HandleCombineImport(w http.ResponseWriter, r *http.Request) {
 
 			for _, url := range urls {
 				if isUrlForNgramAndLetter(url, stringN, letter) {
-					sourceFilename := getNgramFilenameFromUrl(url)
+					sourceFilename := getNgramFilenameFromUrl(url, false)
 					sourceObject := bucket.Object(sourceFilename)
 
 					// let's check if the file exists
@@ -344,5 +396,5 @@ func HandleCombineImport(w http.ResponseWriter, r *http.Request) {
 
 	w.Write(resultJson)
 
-	log.Println("Handling /combine-import finished")
+	log.Println("DONE handling", r.URL)
 }

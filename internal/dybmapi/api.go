@@ -15,7 +15,7 @@ func Setup(templateFolder string) {
 }
 
 func HandleRoot(w http.ResponseWriter, r *http.Request) {
-	log.Println("Handling /")
+	log.Println("START handling", r.URL)
 
 	indexTemplate := TemplateFolder + "index.gohtml"
 	t, err := template.ParseFiles(indexTemplate)
@@ -30,11 +30,11 @@ func HandleRoot(w http.ResponseWriter, r *http.Request) {
 		log.Fatal(err)
 	}
 
-	log.Println("Handling / finished")
+	log.Println("DONE handling", r.URL)
 }
 
 func HandlePimp(w http.ResponseWriter, r *http.Request) {
-	log.Println("Handling /pimp")
+	log.Println("START handling", r.URL)
 
 	w.Header().Add("Content-type", "application/json")
 
@@ -64,5 +64,5 @@ func HandlePimp(w http.ResponseWriter, r *http.Request) {
 
 	w.Write(result)
 
-	log.Println("Handling /pimp finished")
+	log.Println("DONE handling", r.URL)
 }
