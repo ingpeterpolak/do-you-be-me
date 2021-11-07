@@ -19,9 +19,6 @@ import (
 	"cloud.google.com/go/storage"
 )
 
-var ctx context.Context
-var bucket *storage.BucketHandle
-
 var DataFolder string
 
 func Setup(dataFolder string) {
@@ -89,6 +86,8 @@ func processUrl(url string, id string) {
 	log.Println("Processing url", url, id)
 	writtenNgrams := 0
 
+	ctx, bucket := prepareContext()
+
 	targetRawFileName := getNgramFilenameFromUrl(url, true)
 	targetFileName := getNgramFilenameFromUrl(url, false)
 	targetObject := bucket.Object(targetFileName)
@@ -120,17 +119,20 @@ func processUrl(url string, id string) {
 
 		log.Println("Extracting gzip", url, "to", targetRawFileName, id)
 		if _, err = io.Copy(gcRawWriter, gzReader); err != nil {
-			log.Fatal("Unable to copy gzip", url, "to", targetRawFileName, id, err)
+			log.Println("Unable to copy gzip", url, "to", targetRawFileName, id, err)
+			return
 		}
 		if err := gcRawWriter.Close(); err != nil {
-			log.Fatal("Unable to close raw file", targetRawFileName, id, err)
+			log.Println("Unable to close raw file", targetRawFileName, id, err)
+			return
 		}
 		log.Println("Extract OK", targetRawFileName, id)
 	}
 
 	gcReader, err := targetRawObject.NewReader(ctx)
 	if err != nil {
-		log.Fatal("Unable to open raw", targetRawFileName, id, err)
+		log.Println("Unable to open raw", targetRawFileName, id, err)
+		return
 	}
 	defer gcReader.Close()
 
@@ -175,7 +177,7 @@ func processUrl(url string, id string) {
 					gcWriter.Write([]byte(bufferBuilder.String()))
 
 					linesWritten += bufferLength
-					log.Println("Another ", linesWritten, "lines written yet", targetFileName, id)
+					log.Println("Already written", linesWritten, targetFileName, id)
 
 					bufferBuilder.Reset()
 					bufferLength = 0
@@ -215,7 +217,7 @@ func processUrl(url string, id string) {
 
 // getAndProcessFiles gets the source Google Books ngram files and processes them
 // the resulting files are cleansed - meaning each ngram only appears once and all the ngrams featuring non-letters are omitted
-func getAndProcessFiles(urls []string, n, letter string, maxUrls int, requestTime string) ImportData {
+func getAndProcessFiles(ctx context.Context, bucket *storage.BucketHandle, urls []string, n, letter string, maxUrls int, requestTime string) ImportData {
 	log.Println("Processing urls", n, letter, "max", maxUrls, requestTime)
 
 	var importData ImportData
@@ -262,19 +264,17 @@ func getAndProcessFiles(urls []string, n, letter string, maxUrls int, requestTim
 }
 
 // prepareContext prepares the basic context to work with Cloud Storage
-func prepareContext() {
-	ctx = context.Background()
-
+func prepareContext() (context.Context, *storage.BucketHandle) {
+	ctx := context.Background()
 	client, err := storage.NewClient(ctx)
 	if err != nil {
 		log.Fatal("Failed to create Cloud Storage client: ", err)
 	}
-
-	bucket = client.Bucket(bucketName)
+	bucket := client.Bucket(bucketName)
+	return ctx, bucket
 }
 
-// prepareContext prepares the basic context to work with Cloud Storage
-func readUrlFile() []string {
+func readUrlFile(ctx context.Context, bucket *storage.BucketHandle) []string {
 	urlFileReader, err := bucket.Object(urlsFictionFilename).NewReader(ctx)
 	if err != nil {
 		log.Fatal("Unable to open urls", urlsFictionFilename, err)
@@ -304,8 +304,8 @@ func HandleImport(w http.ResponseWriter, r *http.Request) {
 	log.Println("Time", requestTime)
 
 	w.Header().Add("Content-type", "application/json")
-	prepareContext()
-	urls := readUrlFile()
+	ctx, bucket := prepareContext()
+	urls := readUrlFile(ctx, bucket)
 
 	letter := r.URL.Query().Get("letter")
 	n := r.URL.Query().Get("n")
@@ -314,7 +314,7 @@ func HandleImport(w http.ResponseWriter, r *http.Request) {
 		log.Fatal("Unable to get the max number of files from query: ", err, requestTime)
 	}
 
-	importData := getAndProcessFiles(urls, n, letter, max, requestTime)
+	importData := getAndProcessFiles(ctx, bucket, urls, n, letter, max, requestTime)
 
 	importData.UrlsFilename = urlsFictionFilename
 	resultJson, err := json.Marshal(importData)
@@ -341,8 +341,8 @@ func HandleCombineImport(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Add("Content-type", "application/json")
 
-	prepareContext()
-	urls := readUrlFile()
+	ctx, bucket := prepareContext()
+	urls := readUrlFile(ctx, bucket)
 	var combineImportData CombineImportData
 
 	//var cLetters = [...]string{"c"}
@@ -444,11 +444,9 @@ func HandleProcess(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Add("Content-type", "application/json")
 
-	prepareContext()
-
 	testWords := [...]string{"metronome", "I", "of", "mud", "can't", "testosterone", "twerk", "mom", "committee", "employee", "doable", "peetee", "goatsie", "vogue", "monologue", "college", "colleague"}
 	for _, word := range testWords {
-		syllablesCount, knownDataUsed := countSyllables(word)
+		syllablesCount, knownDataUsed := CountSyllables(word)
 		log.Println(word, "has", syllablesCount, "syllables. Known:", knownDataUsed)
 	}
 

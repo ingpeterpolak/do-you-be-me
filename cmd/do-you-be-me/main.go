@@ -10,15 +10,10 @@ import (
 )
 
 var localDebug bool
+var assetsFolder string
 
 // mapHandlers maps all the URLs to the correct handlers
 func mapHandlers() {
-	assetsFolder := "./assets"
-	// look for the assets elsewhere if we're debugging locally on Windows
-	if localDebug {
-		assetsFolder = "../../web/assets"
-	}
-
 	fs := http.FileServer(http.Dir(assetsFolder))
 	http.Handle("/assets/", http.StripPrefix("/assets/", fs))
 
@@ -40,7 +35,7 @@ func setupApi() {
 		templateFolder = "../../web/template/"
 	}
 
-	dybmapi.Setup(templateFolder)
+	dybmapi.Setup(templateFolder, assetsFolder)
 }
 
 // setupApi sets the correct template folder for both local debugging and production run
@@ -76,6 +71,12 @@ func main() {
 	if currentOs == "Windows_NT" {
 		log.Println("Debugging locally")
 		localDebug = true
+	}
+
+	assetsFolder = "./assets"
+	// look for the assets elsewhere if we're debugging locally on Windows
+	if localDebug {
+		assetsFolder = "../../web/assets"
 	}
 
 	setupApi()

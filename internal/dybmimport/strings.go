@@ -121,7 +121,7 @@ func initializeKnownSyllables() {
 // countSyllables returns the syllable count in a word
 // first it tries to find the word in the list of known words, if not there, it tries to count the syllables manually
 // the second return value indicates if the count was found in the known data
-func countSyllables(word string) (int, bool) {
+func CountSyllables(word string) (int, bool) {
 	if wordsWithSyllableCount == nil {
 		initializeKnownSyllables()
 	}

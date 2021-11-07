@@ -5,8 +5,9 @@ type IndexData struct {
 }
 
 type PimpedLine struct {
-	Number int    `json:"number"`
-	Line   string `json:"line"`
+	Number    int    `json:"number"`
+	Line      string `json:"line"`
+	Syllables int    `json:"syllables"`
 }
 
 type PimpedLyrics struct {
