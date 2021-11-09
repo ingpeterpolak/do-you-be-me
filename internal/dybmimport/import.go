@@ -83,7 +83,7 @@ func prepareNgram(textBytes, yearBytes, matchesBytes, volumesBytes []byte, ngram
 // processUrl processes one URL and it's meant to run concurrently.
 // it can handle files the size of tens of gigabytes within one hour timeout (tested)
 func processUrl(url string, id string) {
-	log.Println("Processing url", url, id)
+	log.Println("Url", url, id)
 	writtenNgrams := 0
 
 	ctx, bucket := prepareContext()
@@ -91,16 +91,16 @@ func processUrl(url string, id string) {
 	targetRawFileName := getNgramFilenameFromUrl(url, true)
 	targetFileName := getNgramFilenameFromUrl(url, false)
 	targetObject := bucket.Object(targetFileName)
-	attrs, err := targetObject.Attrs(ctx)
+	_, err := targetObject.Attrs(ctx)
 	if err == nil {
-		log.Println("Url", url, "already here:", targetFileName, "size", attrs.Size, id)
+		// log.Println("Url", url, "already here:", targetFileName, "size", attrs.Size, id)
 		return
 	}
 
 	targetRawObject := bucket.Object(targetRawFileName)
-	attrs, err = targetRawObject.Attrs(ctx)
+	_, err = targetRawObject.Attrs(ctx)
 	if err == nil {
-		log.Println("Gzip already unzipped:", targetRawFileName, "size", attrs.Size, id)
+		// log.Println("Gzip already unzipped:", targetRawFileName, "size", attrs.Size, id)
 	} else {
 		response, err := http.Get(url)
 		if err != nil {
@@ -117,13 +117,13 @@ func processUrl(url string, id string) {
 		gcRawWriter := targetRawObject.NewWriter(ctx)
 		gcRawWriter.ContentType = "text/csv"
 
-		log.Println("Extracting gzip", url, "to", targetRawFileName, id)
+		log.Println("Extract gzip", url, "to", targetRawFileName, id)
 		if _, err = io.Copy(gcRawWriter, gzReader); err != nil {
-			log.Println("Unable to copy gzip", url, "to", targetRawFileName, id, err)
+			log.Println("Unable to extract gzip", url, "to", targetRawFileName, id, err)
 			return
 		}
 		if err := gcRawWriter.Close(); err != nil {
-			log.Println("Unable to close raw file", targetRawFileName, id, err)
+			log.Println("Unable to close raw", targetRawFileName, id, err)
 			return
 		}
 		log.Println("Extract OK", targetRawFileName, id)
@@ -152,12 +152,12 @@ func processUrl(url string, id string) {
 	var tabSeparator = [...]byte{9}
 
 	scanner := bufio.NewScanner(gcReader)
-	log.Println("Scanning", targetFileName, id)
+	// log.Println("Scanning", targetFileName, id)
 	for scanner.Scan() {
 		line := scanner.Bytes()
 		linesRead++
 		if linesRead%100000000 == 0 {
-			log.Println("Another 100M lines", targetRawFileName, "total", linesRead, id)
+			log.Println("+100M lines", targetRawFileName, "total", linesRead, id)
 		}
 
 		// format: ngram TAB year TAB match_count TAB volume_count NEWLINE
@@ -173,11 +173,10 @@ func processUrl(url string, id string) {
 
 				bufferLength++
 				if bufferLength > bufferCapacity {
-					log.Println("Buffer flush", bufferLength, "to", targetFileName, id)
-					gcWriter.Write([]byte(bufferBuilder.String()))
-
 					linesWritten += bufferLength
-					log.Println("Already written", linesWritten, targetFileName, id)
+
+					log.Println("Buffer flush", bufferLength, "total", linesWritten, "to", targetFileName, id)
+					gcWriter.Write([]byte(bufferBuilder.String()))
 
 					bufferBuilder.Reset()
 					bufferLength = 0
@@ -190,7 +189,7 @@ func processUrl(url string, id string) {
 			previousNgram.Text = ngram.Text
 			previousNgram.Frequency = ngram.Frequency
 		} else {
-			log.Println("WARNING: Found a line with not enough TABs:", line, id)
+			log.Println("WARNING: Found a line with not enough TABs:", string(line), id)
 		}
 	}
 
@@ -212,7 +211,7 @@ func processUrl(url string, id string) {
 		log.Println("Deleted raw", targetRawFileName, id)
 	}
 
-	log.Println("======= Finished processing url", url, "with", writtenNgrams, "ngrams were written into", targetFileName, id)
+	log.Println("======= Finished", url, "with", writtenNgrams, "ngrams written into", targetFileName, id)
 }
 
 // getAndProcessFiles gets the source Google Books ngram files and processes them
@@ -226,9 +225,9 @@ func getAndProcessFiles(ctx context.Context, bucket *storage.BucketHandle, urls 
 	targetObject := bucket.Object(targetFilename)
 
 	// let's check if the final file exists
-	attrs, err := targetObject.Attrs(ctx)
+	_, err := targetObject.Attrs(ctx)
 	if err == nil {
-		log.Println("Final file", targetFilename, "exists, size", attrs.Size)
+		// log.Println("Final file", targetFilename, "exists, size", attrs.Size)
 	} else {
 		var urlsToProcess []string
 		urlsProcessed := 0
@@ -257,7 +256,7 @@ func getAndProcessFiles(ctx context.Context, bucket *storage.BucketHandle, urls 
 
 		wg.Wait()
 
-		log.Println("DONE.", urlsProcessed, "urls with", n, "-grams starting with", letter)
+		log.Println("______________DONE_____________", urlsProcessed, "urls with", n, "-grams starting with", letter)
 	}
 
 	return importData
@@ -345,20 +344,29 @@ func HandleCombineImport(w http.ResponseWriter, r *http.Request) {
 	urls := readUrlFile(ctx, bucket)
 	var combineImportData CombineImportData
 
+	allFinalFilesExist := true
+	finalFiles := make(map[int][]*storage.ObjectHandle)
+
 	//var cLetters = [...]string{"c"}
 	//for n := 2; n <= 2; n++ {
 	//for _, letter := range cLetters {
 	for n := 2; n <= 5; n++ {
+		var newFinalFiles []*storage.ObjectHandle
+		finalFiles[n] = newFinalFiles
+
 		for _, letter := range validLetters {
 			stringN := strconv.Itoa(n)
-			targetFilename := getNgramTargetFilename(stringN, letter)
-			targetObject := bucket.Object(targetFilename)
+			finalFilename := getNgramTargetFilename(stringN, letter)
+			finalObject := bucket.Object(finalFilename)
 
 			// let's check if the file exists
-			attrs, err := targetObject.Attrs(ctx)
+			_, err := finalObject.Attrs(ctx)
 			if err == nil {
-				log.Println("No need to process target file", targetFilename, "as it already exists and its size is", attrs.Size)
+				// log.Println("No need to process target file", targetFilename, "as it already exists and its size is", attrs.Size)
+				finalFiles[n] = append(finalFiles[n], finalObject)
 				continue
+			} else {
+				allFinalFilesExist = false
 			}
 
 			var sourceFiles []string
@@ -366,7 +374,7 @@ func HandleCombineImport(w http.ResponseWriter, r *http.Request) {
 
 			var totalSize int64 = 0
 			allFilesExist := true
-			log.Println("Checking if all source files exist for", targetFilename)
+			log.Println("Checking if all source files exist for", finalFilename)
 
 			for _, url := range urls {
 				if isUrlForNgramAndLetter(url, stringN, letter) {
@@ -391,7 +399,7 @@ func HandleCombineImport(w http.ResponseWriter, r *http.Request) {
 
 			if allFilesExist {
 				log.Println("All the source files exist and their total size is", totalSize, "- let's try composing them together")
-				composer := targetObject.ComposerFrom(sourceObjects...)
+				composer := finalObject.ComposerFrom(sourceObjects...)
 				composer.ObjectAttrs.ContentType = "text/csv"
 				_, err = composer.Run(ctx)
 				if err != nil {
@@ -401,10 +409,10 @@ func HandleCombineImport(w http.ResponseWriter, r *http.Request) {
 					combinedFile.N = n
 					combinedFile.Letter = letter
 					combinedFile.SourceFiles = sourceFiles
-					combinedFile.TargetFile = targetFilename
+					combinedFile.TargetFile = finalFilename
 					combineImportData.CombinedFiles = append(combineImportData.CombinedFiles, combinedFile)
 
-					log.Println("Composing successful for", targetFilename, " - deleting source files")
+					log.Println("Composing successful for", finalFilename, " - deleting source files")
 					for _, objectToDelete := range sourceObjects {
 						err := objectToDelete.Delete(ctx)
 						if err != nil {
@@ -413,7 +421,55 @@ func HandleCombineImport(w http.ResponseWriter, r *http.Request) {
 					}
 				}
 			} else {
-				log.Println("Not all source files exist for", targetFilename)
+				log.Println("Not all source files exist for", finalFilename)
+			}
+		}
+	}
+
+	if allFinalFilesExist {
+		log.Println("All target files exist, let's make a FINAL file")
+
+		var allFinalNObjects []*storage.ObjectHandle
+		allFinalNFilesOK := true
+		for n := 2; n <= 5; n++ {
+			finalNFilename := fmt.Sprintf("Final_%dgram.csv", n)
+			FinalNObject := bucket.Object(finalNFilename)
+
+			log.Printf("Composing %dgram: %s", n, finalNFilename)
+			finalNComposer := FinalNObject.ComposerFrom(finalFiles[n]...)
+			finalNComposer.ObjectAttrs.ContentType = "text/csv"
+			_, err := finalNComposer.Run(ctx)
+			if err != nil {
+				log.Println("Error when composing the final N file:", err)
+				allFinalNFilesOK = false
+				break
+			} else {
+				allFinalNObjects = append(allFinalNObjects, FinalNObject)
+			}
+		}
+
+		if allFinalNFilesOK {
+			bigQueryImportFilename := "_ngram_BigQueryImport.csv"
+			bigQueryImportObject := bucket.Object(bigQueryImportFilename)
+
+			log.Printf("Composing FINAL file: %s", bigQueryImportFilename)
+
+			bigQueryComposer := bigQueryImportObject.ComposerFrom(allFinalNObjects...)
+			bigQueryComposer.ObjectAttrs.ContentType = "text/csv"
+			_, err := bigQueryComposer.Run(ctx)
+			if err != nil {
+				log.Println("Error when composing the BigQuery import file:", err)
+			} else {
+				log.Printf("FINAL file composed!")
+
+				var sourceFiles []string
+				sourceFiles = append(sourceFiles, "(all final files)")
+				var combinedFile CombinedFile
+				combinedFile.N = 25
+				combinedFile.Letter = "a-z"
+				combinedFile.SourceFiles = sourceFiles
+				combinedFile.TargetFile = bigQueryImportFilename
+				combineImportData.CombinedFiles = append(combineImportData.CombinedFiles, combinedFile)
 			}
 		}
 	}
