@@ -10,7 +10,8 @@ import (
 	"unicode"
 )
 
-var bucketName = "dybm-corpus-1"
+var corpusBucketName = "dybm-corpus-1"
+var relatedWordsBucketName = "dybm-related-words-1"
 var wordsWithSyllableCount map[string]int
 
 // var urlsFilename = "google-ngrams-urls.txt"

@@ -1,5 +1,7 @@
 package dybmimport
 
+const MaxRelatedWordsPerWord = 20
+
 type ImportData struct {
 	UrlsFilename  string   `json:"urls_filename"`
 	ProcessedUrls []string `json:"processed_urls"`
