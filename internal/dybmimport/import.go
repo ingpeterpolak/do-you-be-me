@@ -11,8 +11,6 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
-	"os"
-	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -503,95 +501,95 @@ func HandleProcess(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Add("Content-type", "application/json")
 
-	/*
-		testWords := [...]string{"metronome", "I", "of", "mud", "can't", "testosterone", "twerk", "mom", "committee", "employee", "doable", "peetee", "goatsie", "vogue", "monologue", "college", "colleague"}
-		for _, word := range testWords {
-			syllablesCount, knownDataUsed := CountSyllables(word)
-			log.Println(word, "has", syllablesCount, "syllables. Known:", knownDataUsed)
-		}
-	*/
-
-	lyricsFilename := DataFolder + "tcc_ceds_music.csv"
-	jsonOutputFilename := DataFolder + "relatedWords.json"
-
-	inputFile, err := os.Open(lyricsFilename)
-	if err != nil {
-		log.Fatal("Lyrics data file not present", lyricsFilename, err)
+	testWords := [...]string{"serious", "crucial", "fortunately", "unfortunately"}
+	for _, word := range testWords {
+		syllablesCount, knownDataUsed := CountSyllables(word)
+		log.Println(word, "has", syllablesCount, "syllables. Known:", knownDataUsed)
 	}
 
-	wordsWithRelations := make(map[string]map[string]int)
-	scanner := bufio.NewScanner(inputFile)
+	/*
+		lyricsFilename := DataFolder + "tcc_ceds_music.csv"
+		jsonOutputFilename := DataFolder + "relatedWords.json"
 
-	// the first line is a header
-	scanner.Scan()
+		inputFile, err := os.Open(lyricsFilename)
+		if err != nil {
+			log.Fatal("Lyrics data file not present", lyricsFilename, err)
+		}
 
-	for scanner.Scan() {
-		line := scanner.Text()
-		fragments := strings.Split(line, ",")
-		lyrics := fragments[5]
-		firstWords := strings.Split(lyrics, " ")
-		secondWords := firstWords[:]
-		if len(firstWords) > 5 {
-			for i, firstWord := range firstWords {
-				if firstWord != "" {
-					relatedWords, wasFound := wordsWithRelations[firstWord]
-					if !wasFound {
-						wordsWithRelations[firstWord] = make(map[string]int)
-						relatedWords = wordsWithRelations[firstWord]
-					}
-					for j, secondWord := range secondWords {
-						if secondWord != "" && i != j {
-							relatedWords[secondWord]++
+		wordsWithRelations := make(map[string]map[string]int)
+		scanner := bufio.NewScanner(inputFile)
+
+		// the first line is a header
+		scanner.Scan()
+
+		for scanner.Scan() {
+			line := scanner.Text()
+			fragments := strings.Split(line, ",")
+			lyrics := fragments[5]
+			firstWords := strings.Split(lyrics, " ")
+			secondWords := firstWords[:]
+			if len(firstWords) > 5 {
+				for i, firstWord := range firstWords {
+					if firstWord != "" {
+						relatedWords, wasFound := wordsWithRelations[firstWord]
+						if !wasFound {
+							wordsWithRelations[firstWord] = make(map[string]int)
+							relatedWords = wordsWithRelations[firstWord]
+						}
+						for j, secondWord := range secondWords {
+							if secondWord != "" && i != j {
+								relatedWords[secondWord]++
+							}
 						}
 					}
 				}
 			}
+
 		}
+		inputFile.Close()
 
-	}
-	inputFile.Close()
+		ctx, _, bucket := prepareContext()
 
-	ctx, _, bucket := prepareContext()
+		for word, relatedWords := range wordsWithRelations {
+			var strengths []int
+			for _, strength := range relatedWords {
+				strengths = append(strengths, strength)
+			}
 
-	for word, relatedWords := range wordsWithRelations {
-		var strengths []int
-		for _, strength := range relatedWords {
-			strengths = append(strengths, strength)
-		}
+			sort.Ints(strengths)
+			strengthsCount := len(strengths)
+			minIndex := 0
+			if strengthsCount > MaxRelatedWordsPerWord {
+				minIndex = strengthsCount - 1 - MaxRelatedWordsPerWord + 1
+			}
 
-		sort.Ints(strengths)
-		strengthsCount := len(strengths)
-		minIndex := 0
-		if strengthsCount > MaxRelatedWordsPerWord {
-			minIndex = strengthsCount - 1 - MaxRelatedWordsPerWord + 1
-		}
-
-		var reducedRelatedWords []string
-		for i := strengthsCount - 1; i >= minIndex; i-- {
-			for relatedWord, strength := range relatedWords {
-				if strength == strengths[i] {
-					reducedRelatedWords = append(reducedRelatedWords, relatedWord)
-					wordsWithRelations[word][relatedWord] = 0 // for next iteration, we'll ignore this word as there might be more words with the same strength
-					break
+			var reducedRelatedWords []string
+			for i := strengthsCount - 1; i >= minIndex; i-- {
+				for relatedWord, strength := range relatedWords {
+					if strength == strengths[i] {
+						reducedRelatedWords = append(reducedRelatedWords, relatedWord)
+						wordsWithRelations[word][relatedWord] = 0 // for next iteration, we'll ignore this word as there might be more words with the same strength
+						break
+					}
 				}
 			}
+
+			wordWithRelationsFilename := fmt.Sprintf("%s.csv", word)
+			wordWithRelationsObject := bucket.Object(wordWithRelationsFilename)
+			gcWriter := wordWithRelationsObject.NewWriter(ctx)
+			gcWriter.ContentType = "text/csv"
+
+			for _, relatedWord := range reducedRelatedWords {
+				wordToWrite := []byte(relatedWord)
+				wordToWrite = append(wordToWrite, 10) // ASCII for Line Feed
+				gcWriter.Write(wordToWrite)
+			}
+
+			gcWriter.Close()
 		}
 
-		wordWithRelationsFilename := fmt.Sprintf("%s.csv", word)
-		wordWithRelationsObject := bucket.Object(wordWithRelationsFilename)
-		gcWriter := wordWithRelationsObject.NewWriter(ctx)
-		gcWriter.ContentType = "text/csv"
-
-		for _, relatedWord := range reducedRelatedWords {
-			wordToWrite := []byte(relatedWord)
-			wordToWrite = append(wordToWrite, 10) // ASCII for Line Feed
-			gcWriter.Write(wordToWrite)
-		}
-
-		gcWriter.Close()
-	}
-
-	w.Write([]byte(fmt.Sprintf("Output file %s created", jsonOutputFilename)))
+		w.Write([]byte(fmt.Sprintf("Output file %s created", jsonOutputFilename)))
+	*/
 
 	log.Println("DONE handling", r.URL)
 }

@@ -142,11 +142,36 @@ func CountSyllables(word string) (int, bool) {
 			if string(word[len(word)-1]) == "e" && (!isVowel(word[len(word)-2]) || string(word[len(word)-2]) == "u") {
 				result--
 			}
-			if word[len(word)-2:len(word)-1] == "le" && len(word) > 2 && !isVowel(word[len(word)-3]) {
+			if word[len(word)-2:] == "le" && !isVowel(word[len(word)-3]) {
 				result++
 			}
-			// more tips here: https://github.com/eaydin/sylco
+			if word[0:2] == "mc" {
+				result++
+			}
+			if word[0:2] == "bi" && isVowel(word[2]) {
+				result++
+			}
 		}
+		if len(word) > 3 {
+			if word[0:3] == "tri" && isVowel(word[3]) {
+				result++
+			}
+		}
+		if len(word) > 4 {
+			if word[len(word)-3:] == "ian" && string(word[len(word)-4]) != "c" && string(word[len(word)-4]) != "t" {
+				result++
+			}
+		}
+		if len(word) > 6 {
+			if word[0:2] == "co" && isVowel(word[2]) {
+				result++
+			}
+			if word[0:3] == "pre" && isVowel(word[3]) {
+				result++
+			}
+		}
+
+		// more tips here: https://github.com/eaydin/sylco
 		if result <= 0 {
 			result = 1
 		}

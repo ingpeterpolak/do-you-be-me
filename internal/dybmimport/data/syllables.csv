@@ -825,6 +825,7 @@ camping;2
 camps;1
 campus;2
 can;1
+can't;1
 canada;3
 canadian;4
 canal;2
@@ -1352,6 +1353,7 @@ cottage;2
 cotton;2
 couch;1
 could;1
+couldn't;2
 council;2
 counsel;2
 counseling;3
@@ -1721,6 +1723,7 @@ division;3
 divorce;2
 dna;1
 do;1
+don't;1
 doable;3
 dock;1
 doctor;2
@@ -1730,6 +1733,7 @@ documentary;5
 documentation;5
 dodge;1
 does;1
+doesn't;2
 dog;1
 dogs;1
 doing;2
@@ -2337,7 +2341,7 @@ forms;1
 formula;3
 fort;1
 forth;1
-fortunately;3
+fortunately;4
 fortune;2
 forty;2
 forum;2
@@ -2649,6 +2653,7 @@ hate;1
 hats;1
 haul;1
 have;1
+haven't;2
 having;1
 hawaii;3
 hay;1
@@ -3043,6 +3048,7 @@ is;1
 islam;2
 islamic;2
 island;2
+isn't;2
 isolate;3
 isolated;4
 isolation;4
@@ -5130,6 +5136,7 @@ shorts;1
 shot;1
 shots;1
 should;1
+shouldn't;2
 shoulder;2
 shout;1
 shove;1
@@ -5995,7 +6002,7 @@ unemployment;4
 unexpected;4
 unfair;2
 unfold;2
-unfortunately;4
+unfortunately;5
 unhappy;3
 uniform;3
 union;2
@@ -6295,6 +6302,7 @@ women;2
 won;1
 wonder;2
 wonderful;3
+won't;1
 wood;1
 wooden;2
 woods;1
@@ -6320,6 +6328,7 @@ worship;2
 worst;1
 worth;1
 would;1
+wouldn't;2
 wound;1
 wow;1
 wrap;1
