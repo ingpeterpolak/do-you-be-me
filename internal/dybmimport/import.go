@@ -495,11 +495,6 @@ func HandleProcess(w http.ResponseWriter, r *http.Request) {
 	log.Println("START handling", r.URL)
 	log.Println("Proto", r.Proto, "TLS", r.TLS, "Host", r.Host)
 
-	/*	if r.TLS == nil && r.Host != "localhost:8080" {
-		log.Println("ERROR: Not handling non-https outside localhost", r.URL)
-		return
-	}*/
-
 	w.Header().Add("Content-type", "application/json")
 
 	cmuDictFilename := DataFolder + "cmudict-0.7b.csv"
@@ -548,21 +543,23 @@ func HandleProcess(w http.ResponseWriter, r *http.Request) {
 			log.Println("+1.000.000 lines processed, currently at", i)
 		}
 
-		/*
-			if i > 1000000 {
-				break
-			}
-		*/
+		//if i > 1000000 {
+		//	break
+		//}
 
 		line := scanner.Bytes()
 		fragments := bytes.Split(line, semicolonSeparator[:])
 
 		ngram := string(fragments[0])
+
+		if !isNgramSuitableForLyrics(strings.ToLower(ngram)) {
+			continue
+		}
+
 		frequency := fragments[1]
 		words := strings.Split(ngram, " ")
 
-		var ngramSyllables [1]byte
-		ngramSyllables[0] = 0
+		ngramSyllables := 0
 		var sb strings.Builder
 		wasFound := true
 		for _, word := range words {
@@ -575,17 +572,15 @@ func HandleProcess(w http.ResponseWriter, r *http.Request) {
 			sb.WriteString(pronunciation)
 
 			syllables, _ := CountSyllables(word)
-			ngramSyllables[0] += syllables
+			ngramSyllables += syllables
 		}
 
 		if wasFound {
-			ngramSyllables[0] += AsciiNumDiff
-
 			bufferBuilder.WriteString(ngram)
 			bufferBuilder.WriteByte(semicolonSeparator[0])
 			bufferBuilder.Write(frequency)
 			bufferBuilder.WriteByte(semicolonSeparator[0])
-			bufferBuilder.WriteByte(ngramSyllables[0])
+			bufferBuilder.WriteString(strconv.Itoa(ngramSyllables))
 			bufferBuilder.WriteByte(semicolonSeparator[0])
 			bufferBuilder.WriteString(sb.String())
 			bufferBuilder.WriteByte(newLineSeparator[0])
@@ -611,11 +606,12 @@ func HandleProcess(w http.ResponseWriter, r *http.Request) {
 
 	gcWriter.Close()
 
-	/*testWords := [...]string{"serious", "crucial", "fortunately", "unfortunately"}
-	for _, word := range testWords {
-		syllablesCount, knownDataUsed := CountSyllables(word)
-		log.Println(word, "has", syllablesCount, "syllables. Known:", knownDataUsed)
-	}*/
+	/*
+		testWords := [...]string{"counterrevolutionary", "inevitability", "irresponsibility", "undifferentiated", "responsibility"}
+		for _, word := range testWords {
+			syllablesCount, knownDataUsed := CountSyllables(word)
+			log.Println(word, "has", syllablesCount, "syllables. Known:", knownDataUsed)
+		}*/
 
 	/*
 		lyricsFilename := DataFolder + "tcc_ceds_music.csv"

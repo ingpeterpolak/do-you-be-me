@@ -16,7 +16,7 @@ const corpusBucketName = "dybm-corpus-1"
 const relatedWordsBucketName = "dybm-related-words-1"
 const urlsFictionFilename = "google-ngrams-fiction-urls.txt"
 
-var wordsWithSyllableCount map[string]byte
+var wordsWithSyllableCount map[string]int
 
 // var urlsFilename = "google-ngrams-urls.txt"
 var validLetters = [...]string{"a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z"}
@@ -103,7 +103,7 @@ func convertAsciiNumberToInt(b []byte) int {
 
 // initializeKnownSyllables initializes the syllable count map and reads the known words from the data file
 func initializeKnownSyllables() {
-	wordsWithSyllableCount = make(map[string]byte)
+	wordsWithSyllableCount = make(map[string]int)
 
 	syllablesCountFilename := DataFolder + "syllables.csv"
 
@@ -117,7 +117,7 @@ func initializeKnownSyllables() {
 			line := scanner.Text()
 			fragments := strings.Split(line, ";")
 			count, _ := strconv.Atoi(fragments[1])
-			wordsWithSyllableCount[fragments[0]] = byte(count)
+			wordsWithSyllableCount[fragments[0]] = count
 		}
 		csvFile.Close()
 	}
@@ -126,7 +126,7 @@ func initializeKnownSyllables() {
 // countSyllables returns the syllable count in a word
 // first it tries to find the word in the list of known words, if not there, it tries to count the syllables manually
 // the second return value indicates if the count was found in the known data
-func CountSyllables(word string) (byte, bool) {
+func CountSyllables(word string) (int, bool) {
 	if wordsWithSyllableCount == nil {
 		initializeKnownSyllables()
 	}
@@ -167,7 +167,7 @@ func CountSyllables(word string) (byte, bool) {
 			}
 		}
 		if len(word) > 6 {
-			if word[0:2] == "co" && isVowel(word[2]) {
+			if word[0:2] == "co" && string(word[2]) != "u" && isVowel(word[2]) {
 				result++
 			}
 			if word[0:3] == "pre" && isVowel(word[3]) {
@@ -175,11 +175,50 @@ func CountSyllables(word string) (byte, bool) {
 			}
 		}
 
-		// more tips here: https://github.com/eaydin/sylco
 		if result <= 0 {
 			result = 1
+		}
+
+		if result >= 10 {
+			result = 9
 		}
 	}
 
 	return result, isKnown
+}
+
+// isNgramSuitableForLyrics returns true if the provided ngram is suitable for lyrics
+// e.g. doesn't end with " the"
+func isNgramSuitableForLyrics(ngram string) bool {
+	if len(ngram) > 2 {
+		if ngram[len(ngram)-2:] == " a" {
+			return false
+		}
+	}
+
+	if len(ngram) > 3 {
+		if ngram[len(ngram)-3:] == " an" || ngram[len(ngram)-3:] == " as" || ngram[len(ngram)-3:] == " de" || ngram[len(ngram)-3:] == " du" || ngram[len(ngram)-3:] == " my" {
+			return false
+		}
+	}
+
+	if len(ngram) > 4 {
+		if ngram[len(ngram)-4:] == " the" || ngram[len(ngram)-4:] == " its" || ngram[len(ngram)-4:] == " our" || ngram[len(ngram)-4:] == " his" {
+			return false
+		}
+	}
+
+	if len(ngram) > 5 {
+		if ngram[len(ngram)-5:] == " than" || ngram[len(ngram)-3:] == " your" || ngram[len(ngram)-3:] == " hers" {
+			return false
+		}
+	}
+
+	if len(ngram) > 6 {
+		if ngram[len(ngram)-6:] == " their" {
+			return false
+		}
+	}
+
+	return true
 }
