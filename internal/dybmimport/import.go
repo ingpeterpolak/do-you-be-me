@@ -11,6 +11,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -60,8 +61,8 @@ func prepareNgram(textBytes, yearBytes, matchesBytes, volumesBytes []byte, ngram
 	// if the text is empty, it means it doesn't make sense and we don't want it; for example "B.B. --_."
 	if ngram.Text != "" {
 		year := int(yearBytes[0]-48)*1000 + int(yearBytes[1]-48)*100 + int(yearBytes[2]-48)*10 + int(yearBytes[3]-48)
-		matches := convertBytesNumberToInt(matchesBytes)
-		volumes := convertBytesNumberToInt(volumesBytes)
+		matches := convertAsciiNumberToInt(matchesBytes)
+		volumes := convertAsciiNumberToInt(volumesBytes)
 
 		yearBonus := 1
 		if year > 1980 {
@@ -501,11 +502,120 @@ func HandleProcess(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Add("Content-type", "application/json")
 
-	testWords := [...]string{"serious", "crucial", "fortunately", "unfortunately"}
+	cmuDictFilename := DataFolder + "cmudict-0.7b.csv"
+	cmuDictFile, err := os.Open(cmuDictFilename)
+	if err != nil {
+		log.Fatal("CMU Dict data file not present", cmuDictFilename, err)
+	}
+
+	cmuDict := make(map[string]string)
+	cmuDictScanner := bufio.NewScanner(cmuDictFile)
+	for cmuDictScanner.Scan() {
+		line := cmuDictScanner.Text()
+		fragments := strings.Split(line, ";")
+		cmuDict[fragments[0]] = fragments[1]
+	}
+
+	ctx, bucket, _ := prepareContext()
+
+	allNgramsFilename := "_ngram_BigQueryImport.csv"
+	processedNgramsFilename := "_all_Ngrams_Processed.csv"
+
+	ngramsFileReader, err := bucket.Object(allNgramsFilename).NewReader(ctx)
+	if err != nil {
+		log.Fatal("Unable to open file", allNgramsFilename, err)
+	}
+	defer ngramsFileReader.Close()
+
+	gcWriter := bucket.Object(processedNgramsFilename).NewWriter(ctx)
+	gcWriter.ContentType = "text/csv"
+
+	var bufferBuilder strings.Builder
+	bufferLength := 0
+	bufferCapacity := 100000
+	var linesWritten int = 0
+
+	// line format:
+	// word1 word2;123
+	var semicolonSeparator = [...]byte{59}
+	var newLineSeparator = [...]byte{10}
+
+	i := 0
+	scanner := bufio.NewScanner(ngramsFileReader)
+	for scanner.Scan() {
+		i++
+		if i%1000000 == 0 {
+			log.Println("+1.000.000 lines processed, currently at", i)
+		}
+
+		/*
+			if i > 1000000 {
+				break
+			}
+		*/
+
+		line := scanner.Bytes()
+		fragments := bytes.Split(line, semicolonSeparator[:])
+
+		ngram := string(fragments[0])
+		frequency := fragments[1]
+		words := strings.Split(ngram, " ")
+
+		var ngramSyllables [1]byte
+		ngramSyllables[0] = 0
+		var sb strings.Builder
+		wasFound := true
+		for _, word := range words {
+			var pronunciation string
+			pronunciation, wasFound = cmuDict[strings.ToLower(word)]
+			if !wasFound {
+				break
+			}
+
+			sb.WriteString(pronunciation)
+
+			syllables, _ := CountSyllables(word)
+			ngramSyllables[0] += syllables
+		}
+
+		if wasFound {
+			ngramSyllables[0] += AsciiNumDiff
+
+			bufferBuilder.WriteString(ngram)
+			bufferBuilder.WriteByte(semicolonSeparator[0])
+			bufferBuilder.Write(frequency)
+			bufferBuilder.WriteByte(semicolonSeparator[0])
+			bufferBuilder.WriteByte(ngramSyllables[0])
+			bufferBuilder.WriteByte(semicolonSeparator[0])
+			bufferBuilder.WriteString(sb.String())
+			bufferBuilder.WriteByte(newLineSeparator[0])
+			bufferLength++
+
+			if bufferLength > bufferCapacity {
+				linesWritten += bufferLength
+
+				log.Println("Buffer flush", bufferLength, "total", linesWritten)
+				gcWriter.Write([]byte(bufferBuilder.String()))
+
+				bufferBuilder.Reset()
+				bufferLength = 0
+			}
+		}
+	}
+
+	if bufferLength > 0 {
+		log.Println("Final buffer flush", bufferLength, "with total lines written:", linesWritten)
+		gcWriter.Write([]byte(bufferBuilder.String()))
+		bufferBuilder.Reset()
+	}
+
+	gcWriter.Close()
+
+	/*testWords := [...]string{"serious", "crucial", "fortunately", "unfortunately"}
 	for _, word := range testWords {
 		syllablesCount, knownDataUsed := CountSyllables(word)
 		log.Println(word, "has", syllablesCount, "syllables. Known:", knownDataUsed)
-	}
+	}*/
 
 	/*
 		lyricsFilename := DataFolder + "tcc_ceds_music.csv"

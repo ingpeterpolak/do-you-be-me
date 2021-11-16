@@ -10,12 +10,15 @@ import (
 	"unicode"
 )
 
-var corpusBucketName = "dybm-corpus-1"
-var relatedWordsBucketName = "dybm-related-words-1"
-var wordsWithSyllableCount map[string]int
+const AsciiNumDiff = 48 // the difference between the ascii code of a number and the number. E. g. the ascii code of the number 3 is 51
+
+const corpusBucketName = "dybm-corpus-1"
+const relatedWordsBucketName = "dybm-related-words-1"
+const urlsFictionFilename = "google-ngrams-fiction-urls.txt"
+
+var wordsWithSyllableCount map[string]byte
 
 // var urlsFilename = "google-ngrams-urls.txt"
-var urlsFictionFilename = "google-ngrams-fiction-urls.txt"
 var validLetters = [...]string{"a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z"}
 
 func isVowel(b byte) bool {
@@ -83,9 +86,9 @@ func getNgramTargetFilename(n, letter string) string {
 	return fmt.Sprintf("googlebooks-eng-fiction-all-%sgram-%s.csv", n, letter)
 }
 
-// convertBytesNumberToInt converts a string represented by []byte into a number
+// convertAsciiNumberToInt converts a string represented by []byte into a number
 // it uses ascii codes of numbers so that it doesn't need to convert the whole thing into a string and then use Itoa
-func convertBytesNumberToInt(b []byte) int {
+func convertAsciiNumberToInt(b []byte) int {
 	var result int = 0
 	order := len(b)
 	for i := 0; i < order; i++ {
@@ -93,14 +96,14 @@ func convertBytesNumberToInt(b []byte) int {
 		for j := 0; j < order-i-1; j++ { // this could be done better...
 			tenPowered *= 10
 		}
-		result += tenPowered * (int(b[i]) - 48) //48 is the difference between the ascii code of a number and the number itself
+		result += tenPowered * (int(b[i]) - AsciiNumDiff) //48 is the difference between the ascii code of a number and the number itself
 	}
 	return result
 }
 
 // initializeKnownSyllables initializes the syllable count map and reads the known words from the data file
 func initializeKnownSyllables() {
-	wordsWithSyllableCount = make(map[string]int)
+	wordsWithSyllableCount = make(map[string]byte)
 
 	syllablesCountFilename := DataFolder + "syllables.csv"
 
@@ -113,7 +116,8 @@ func initializeKnownSyllables() {
 		for scanner.Scan() {
 			line := scanner.Text()
 			fragments := strings.Split(line, ";")
-			wordsWithSyllableCount[fragments[0]], _ = strconv.Atoi(fragments[1])
+			count, _ := strconv.Atoi(fragments[1])
+			wordsWithSyllableCount[fragments[0]] = byte(count)
 		}
 		csvFile.Close()
 	}
@@ -122,7 +126,7 @@ func initializeKnownSyllables() {
 // countSyllables returns the syllable count in a word
 // first it tries to find the word in the list of known words, if not there, it tries to count the syllables manually
 // the second return value indicates if the count was found in the known data
-func CountSyllables(word string) (int, bool) {
+func CountSyllables(word string) (byte, bool) {
 	if wordsWithSyllableCount == nil {
 		initializeKnownSyllables()
 	}

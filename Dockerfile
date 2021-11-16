@@ -31,6 +31,6 @@ WORKDIR /do-you-be-me
 COPY --from=build /app ./app
 COPY web/template/index.gohtml ./index.gohtml
 COPY web/assets ./assets
-COPY internal/dybmimport/data/syllables.csv ./data/syllables.csv
+COPY internal/dybmimport/data ./data
 
 ENTRYPOINT ["./app"]

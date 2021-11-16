@@ -76,7 +76,8 @@ func HandlePimp(w http.ResponseWriter, r *http.Request) {
 
 		line := removeSpecialCharsFromLyrics(s)
 		words := strings.Split(line, " ")
-		syllablesCount := 0
+		var syllablesCount byte
+		syllablesCount = 0
 		for _, word := range words {
 
 			count, _ := dybmimport.CountSyllables(word)
