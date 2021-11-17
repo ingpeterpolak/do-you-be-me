@@ -17,6 +17,7 @@ const relatedWordsBucketName = "dybm-related-words-1"
 const urlsFictionFilename = "google-ngrams-fiction-urls.txt"
 
 var wordsWithSyllableCount map[string]int
+var pronunciations map[string]string
 
 // var urlsFilename = "google-ngrams-urls.txt"
 var validLetters = [...]string{"a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z"}
@@ -221,4 +222,112 @@ func isNgramSuitableForLyrics(ngram string) bool {
 	}
 
 	return true
+}
+
+func initializePronunciation() {
+	pronunciations = make(map[string]string)
+
+	pronunciations["aa0"] = "a"
+	pronunciations["aa1"] = "Á"
+	pronunciations["aa2"] = "Á"
+
+	pronunciations["ae0"] = "ä"
+	pronunciations["ae1"] = "Ä"
+	pronunciations["ae2"] = "Ä"
+
+	pronunciations["ah0"] = "ö"
+	pronunciations["ah1"] = "A"
+	pronunciations["ah2"] = "a"
+
+	pronunciations["ao0"] = "o"
+	pronunciations["ao1"] = "O"
+	pronunciations["ao2"] = "O"
+
+	pronunciations["aw0"] = "au"
+	pronunciations["aw1"] = "AU"
+	pronunciations["aw2"] = "AU"
+
+	pronunciations["ay0"] = "ai"
+	pronunciations["ay1"] = "AI"
+	pronunciations["ay2"] = "AI"
+
+	pronunciations["b"] = "b"
+	pronunciations["ch"] = "č"
+	pronunciations["d"] = "d"
+	pronunciations["dh"] = "d"
+
+	pronunciations["eh0"] = "e"
+	pronunciations["eh1"] = "E"
+	pronunciations["eh2"] = "E"
+
+	pronunciations["er0"] = "ör"
+	pronunciations["er1"] = "ÖR"
+	pronunciations["er2"] = "ÖR"
+
+	pronunciations["ey0"] = "ei"
+	pronunciations["ey1"] = "EI"
+	pronunciations["ey2"] = "EI"
+
+	pronunciations["f"] = "f"
+	pronunciations["g"] = "g"
+	pronunciations["hh"] = "h"
+
+	pronunciations["ih0"] = "i"
+	pronunciations["ih1"] = "I"
+	pronunciations["ih2"] = "I"
+
+	pronunciations["iy0"] = "i"
+	pronunciations["iy1"] = "Í"
+	pronunciations["iy2"] = "Í"
+
+	pronunciations["jh"] = "dž"
+	pronunciations["k"] = "k"
+	pronunciations["l"] = "l"
+	pronunciations["m"] = "m"
+	pronunciations["n"] = "n"
+	pronunciations["ng"] = "n"
+
+	pronunciations["ow0"] = "ou"
+	pronunciations["ow1"] = "OU"
+	pronunciations["ow2"] = "OU"
+
+	pronunciations["oy0"] = "oi"
+	pronunciations["oy1"] = "OI"
+	pronunciations["oy2"] = "OI"
+
+	pronunciations["p"] = "p"
+	pronunciations["r"] = "r"
+	pronunciations["s"] = "s"
+	pronunciations["sh"] = "š"
+	pronunciations["t"] = "t"
+	pronunciations["th"] = "t"
+
+	pronunciations["uh0"] = "u"
+	pronunciations["uh1"] = "U"
+	pronunciations["uh2"] = "U"
+
+	pronunciations["uw0"] = "u"
+	pronunciations["uw1"] = "U"
+	pronunciations["uw2"] = "U"
+
+	pronunciations["v"] = "v"
+	pronunciations["w"] = "w"
+	pronunciations["y"] = "j"
+	pronunciations["z"] = "z"
+	pronunciations["zh"] = "ž"
+}
+
+// getPronunciation gets the slavic pronunciation from the given CMU pronunciation
+func getPronunciation(cmu string) string {
+	if pronunciations == nil {
+		initializePronunciation()
+	}
+
+	var builder strings.Builder
+	cmuSymbols := strings.Split(cmu, " ")
+	for _, symbol := range cmuSymbols {
+		builder.WriteString(pronunciations[symbol])
+	}
+
+	return builder.String()
 }
