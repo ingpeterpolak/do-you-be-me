@@ -23,3 +23,10 @@ type Ngram struct {
 	Text         string
 	Frequency    int
 }
+
+type Rhyme struct {
+	Expression string
+	Strong     string
+	Average    string
+	Weak       string
+}
