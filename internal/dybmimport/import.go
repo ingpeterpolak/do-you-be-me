@@ -265,12 +265,12 @@ func getAndProcessFiles(ctx context.Context, bucket *storage.BucketHandle, urls 
 // prepareContext prepares the basic context to work with Cloud Storage
 func prepareContext() (context.Context, *storage.BucketHandle, *storage.BucketHandle) {
 	ctx := context.Background()
-	client, err := storage.NewClient(ctx)
+	storageClient, err := storage.NewClient(ctx)
 	if err != nil {
 		log.Fatal("Failed to create Cloud Storage client: ", err)
 	}
-	corpusBucket := client.Bucket(corpusBucketName)
-	relatedWordsBucket := client.Bucket(relatedWordsBucketName)
+	corpusBucket := storageClient.Bucket(corpusBucketName)
+	relatedWordsBucket := storageClient.Bucket(relatedWordsBucketName)
 	return ctx, corpusBucket, relatedWordsBucket
 }
 

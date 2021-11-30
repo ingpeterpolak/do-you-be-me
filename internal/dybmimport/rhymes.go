@@ -303,9 +303,9 @@ func extractRhyme(pronunciation string) Rhyme {
 	weakRhyme := getLastSyllables(averageRhyme, 2)
 
 	var rhyme Rhyme
-	rhyme.Strong = strongRhyme
-	rhyme.Average = averageRhyme
-	rhyme.Weak = weakRhyme
+	rhyme.StrongRhyme = strongRhyme
+	rhyme.AverageRhyme = averageRhyme
+	rhyme.WeakRhyme = weakRhyme
 
 	return rhyme
 }
