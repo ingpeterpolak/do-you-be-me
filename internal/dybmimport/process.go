@@ -332,11 +332,10 @@ func createFinalNgramsFile(n string) {
 	gcWriter.Close()
 }
 
-func createNgramsBigQuery() {
+func createNgramsBigQuery(n string) {
 	ctx, bucket, _ := prepareContext()
 	var newLineSeparator = [...]byte{10}
 	var semicolonSeparator = [...]byte{59}
-	var maxRhymesPerNgram = 10000
 
 	bq, err := bigquery.NewClient(ctx, "nth-mantra-324918")
 	if err != nil {
@@ -344,21 +343,29 @@ func createNgramsBigQuery() {
 	}
 	defer bq.Close()
 
-	rhymesObjectFilename := "Rhymes.csv"
+	rhymesObjectFilename := fmt.Sprintf("Rhymes-syllables-%s.csv", n)
 	rhymesObject := bucket.Object(rhymesObjectFilename)
 	gcWriter := rhymesObject.NewWriter(ctx)
 	gcWriter.ContentType = "text/csv"
 
-	query := bq.Query("SELECT ngram, frequency, syllables, rhyme_strong, rhyme_average, rhyme_weak FROM `nth-mantra-324918.dybm_ngrams_1.ngrams` ORDER BY syllables, rhyme_weak, rhyme_average, rhyme_strong, frequency DESC;")
+	sql := fmt.Sprintf("SELECT ngram, frequency, syllables, rhyme_strong, rhyme_average, rhyme_weak FROM `nth-mantra-324918.dybm_ngrams_1.ngrams` WHERE syllables = %s ORDER BY rhyme_weak, rhyme_average, rhyme_strong, frequency DESC;", n)
+	log.Println("Running query", sql)
+
+	query := bq.Query(sql)
 	rows, err := query.Read(ctx)
 	if err != nil {
 		log.Fatal("Error reading query", err)
 	}
 
 	var rhymeBuffer strings.Builder
-	rhymeCount := 0
+	ngramCount := 0
+	maxNgramsPerStrongRhyme := 10000
 	var rhymesWritten int = 0
 
+	bufferCount := 0
+	bufferLength := 100000
+
+	log.Println("Starting to process", rows.TotalRows, "rows")
 	previousRhyme := ""
 	ignoreRestOfRhymes := false
 	for {
@@ -371,25 +378,16 @@ func createNgramsBigQuery() {
 			log.Fatal("Error iterating through results", err)
 		}
 
-		isEnoughNgramsForRhyme := rhymeCount >= maxRhymesPerNgram
+		isEnoughNgramsForRhyme := ngramCount >= maxNgramsPerStrongRhyme
 		isDifferentNgram := previousRhyme != "" && previousRhyme != row.StrongRhyme
 
 		if isDifferentNgram {
 			ignoreRestOfRhymes = false
+			ngramCount = 0
 		}
 
 		if ignoreRestOfRhymes {
 			continue
-		}
-
-		if (isEnoughNgramsForRhyme || isDifferentNgram) && rhymeCount > 0 {
-			rhymesWritten += rhymeCount
-
-			log.Println("Writing rhyme", row.Frequency, previousRhyme, rhymeCount, "total", rhymesWritten)
-			gcWriter.Write([]byte(rhymeBuffer.String()))
-
-			rhymeBuffer.Reset()
-			rhymeCount = 0
 		}
 
 		if !isDifferentNgram && isEnoughNgramsForRhyme {
@@ -398,7 +396,7 @@ func createNgramsBigQuery() {
 
 		if !ignoreRestOfRhymes {
 			words := strings.Split(row.Ngram, " ")
-			row.LastWord = words[len(words)-1]
+			row.LastWord = strings.ToLower(words[len(words)-1])
 
 			rhymeBuffer.WriteString(strconv.Itoa(row.Syllables))
 			rhymeBuffer.WriteByte(semicolonSeparator[0])
@@ -414,16 +412,27 @@ func createNgramsBigQuery() {
 			rhymeBuffer.WriteByte(semicolonSeparator[0])
 			rhymeBuffer.WriteString(row.LastWord)
 			rhymeBuffer.WriteByte(newLineSeparator[0])
-			rhymeCount++
+			ngramCount++
+			bufferCount++
+		}
+
+		if bufferCount >= bufferLength {
+			rhymesWritten += bufferCount
+
+			log.Println("Flushing buffer", n, "syllables, total", rhymesWritten)
+			gcWriter.Write([]byte(rhymeBuffer.String()))
+
+			rhymeBuffer.Reset()
+			bufferCount = 0
 		}
 
 		previousRhyme = row.StrongRhyme
 	}
 
-	if rhymeCount > 0 {
-		rhymesWritten += rhymeCount
+	if bufferCount > 0 {
+		rhymesWritten += bufferCount
 
-		log.Println("Writing FINAL ngrams for rhyme", previousRhyme, ":", rhymeCount, "total", rhymesWritten)
+		log.Println("FINAL flushing buffer", n, "syllables, total", rhymesWritten)
 		gcWriter.Write([]byte(rhymeBuffer.String()))
 	}
 
@@ -456,7 +465,8 @@ func HandleProcess(w http.ResponseWriter, r *http.Request) {
 		createFinalNgramsFile(n)
 	}
 	if action == "create-ngrams-bigquery" {
-		createNgramsBigQuery()
+		n := r.URL.Query().Get("n")
+		createNgramsBigQuery(n)
 	}
 
 	w.Write([]byte(result))
