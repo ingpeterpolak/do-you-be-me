@@ -71,22 +71,52 @@ func HandlePimp(w http.ResponseWriter, r *http.Request) {
 	lyrics := r.URL.Query().Get("lyrics")
 	lines := strings.Split(lyrics, "\n")
 
+	var lastRhymeId = ""
 	var pimpedLines []PimpedLine
+	var rhymes []Rhyme
 	for i, s := range lines {
 
 		line := removeSpecialCharsFromLyrics(s)
-		words := strings.Split(line, " ")
+		pureWords := removeNonAlphanumeric(line)
+
+		if pureWords == "" {
+			continue
+		}
+
+		pronunciation := dybmimport.Pronounce(pureWords)
+		extractedRhyme := dybmimport.ExtractRhyme(pronunciation)
+
+		words := strings.Split(pureWords, " ")
 		syllablesCount := 0
 		for _, word := range words {
-
 			count, _ := dybmimport.CountSyllables(word)
 			syllablesCount += count
+		}
+
+		foundRhymeId := ""
+		for _, rhyme := range rhymes {
+			if extractedRhyme.WeakRhyme == rhyme.Rhyme {
+				foundRhymeId = rhyme.Id
+				break
+			}
+		}
+
+		if foundRhymeId == "" {
+			lastRhymeId = getNextRhymeId(lastRhymeId)
+
+			var rhyme Rhyme
+			rhyme.Id = lastRhymeId
+			rhyme.Rhyme = extractedRhyme.WeakRhyme
+
+			rhymes = append(rhymes, rhyme)
+			foundRhymeId = rhyme.Id
 		}
 
 		var pimpedLine PimpedLine
 		pimpedLine.Number = i + 1
 		pimpedLine.Line = line
 		pimpedLine.Syllables = syllablesCount
+		pimpedLine.RhymeId = foundRhymeId
 
 		pimpedLines = append(pimpedLines, pimpedLine)
 	}

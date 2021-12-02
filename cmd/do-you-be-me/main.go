@@ -22,7 +22,6 @@ func mapHandlers() {
 
 	http.HandleFunc("/import", dybmimport.HandleImport)
 	http.HandleFunc("/combine-import", dybmimport.HandleCombineImport)
-
 	http.HandleFunc("/process", dybmimport.HandleProcess)
 }
 

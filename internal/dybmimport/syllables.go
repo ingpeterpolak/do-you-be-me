@@ -40,6 +40,10 @@ func CountSyllables(word string) (int, bool) {
 		initializeKnownSyllables()
 	}
 
+	if word == "" {
+		return 0, false
+	}
+
 	word = strings.ToLower(word)
 	result, isKnown := wordsWithSyllableCount[word]
 	if !isKnown {

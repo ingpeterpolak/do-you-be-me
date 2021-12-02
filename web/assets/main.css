@@ -22,3 +22,8 @@ div.syllables {
     text-align: left;
     color: #ccc;
 }
+
+div.rhyme {
+    text-align: left;
+    color: #58a;
+}

@@ -1,9 +1,13 @@
 package dybmimport
 
 import (
+	"bufio"
+	"log"
+	"os"
 	"strings"
 )
 
+var cmuToSlavicPronunciations map[string]string
 var pronunciations map[string]string
 
 func isVowel(b byte) bool {
@@ -12,108 +16,108 @@ func isVowel(b byte) bool {
 }
 
 func initializePronunciation() {
-	pronunciations = make(map[string]string)
+	cmuToSlavicPronunciations = make(map[string]string)
 
-	pronunciations["aa0"] = "a"
-	pronunciations["aa1"] = "Á"
-	pronunciations["aa2"] = "Á"
+	cmuToSlavicPronunciations["aa0"] = "a"
+	cmuToSlavicPronunciations["aa1"] = "Á"
+	cmuToSlavicPronunciations["aa2"] = "Á"
 
-	pronunciations["ae0"] = "ä"
-	pronunciations["ae1"] = "Ä"
-	pronunciations["ae2"] = "Ä"
+	cmuToSlavicPronunciations["ae0"] = "ä"
+	cmuToSlavicPronunciations["ae1"] = "Ä"
+	cmuToSlavicPronunciations["ae2"] = "Ä"
 
-	pronunciations["ah0"] = "ö"
-	pronunciations["ah1"] = "A"
-	pronunciations["ah2"] = "a"
+	cmuToSlavicPronunciations["ah0"] = "ö"
+	cmuToSlavicPronunciations["ah1"] = "A"
+	cmuToSlavicPronunciations["ah2"] = "a"
 
-	pronunciations["ao0"] = "o"
-	pronunciations["ao1"] = "O"
-	pronunciations["ao2"] = "O"
+	cmuToSlavicPronunciations["ao0"] = "o"
+	cmuToSlavicPronunciations["ao1"] = "O"
+	cmuToSlavicPronunciations["ao2"] = "O"
 
-	pronunciations["aw0"] = "au"
-	pronunciations["aw1"] = "AU"
-	pronunciations["aw2"] = "AU"
+	cmuToSlavicPronunciations["aw0"] = "au"
+	cmuToSlavicPronunciations["aw1"] = "AU"
+	cmuToSlavicPronunciations["aw2"] = "AU"
 
-	pronunciations["ay0"] = "aj"
-	pronunciations["ay1"] = "AJ"
-	pronunciations["ay2"] = "AJ"
+	cmuToSlavicPronunciations["ay0"] = "aj"
+	cmuToSlavicPronunciations["ay1"] = "AJ"
+	cmuToSlavicPronunciations["ay2"] = "AJ"
 
-	pronunciations["b"] = "b"
-	pronunciations["ch"] = "č"
-	pronunciations["d"] = "d"
-	pronunciations["dh"] = "d"
+	cmuToSlavicPronunciations["b"] = "b"
+	cmuToSlavicPronunciations["ch"] = "č"
+	cmuToSlavicPronunciations["d"] = "d"
+	cmuToSlavicPronunciations["dh"] = "d"
 
-	pronunciations["eh0"] = "e"
-	pronunciations["eh1"] = "E"
-	pronunciations["eh2"] = "E"
+	cmuToSlavicPronunciations["eh0"] = "e"
+	cmuToSlavicPronunciations["eh1"] = "E"
+	cmuToSlavicPronunciations["eh2"] = "E"
 
-	pronunciations["er0"] = "ör"
-	pronunciations["er1"] = "ÖR"
-	pronunciations["er2"] = "ÖR"
+	cmuToSlavicPronunciations["er0"] = "ör"
+	cmuToSlavicPronunciations["er1"] = "ÖR"
+	cmuToSlavicPronunciations["er2"] = "ÖR"
 
-	pronunciations["ey0"] = "ej"
-	pronunciations["ey1"] = "EJ"
-	pronunciations["ey2"] = "EJ"
+	cmuToSlavicPronunciations["ey0"] = "ej"
+	cmuToSlavicPronunciations["ey1"] = "EJ"
+	cmuToSlavicPronunciations["ey2"] = "EJ"
 
-	pronunciations["f"] = "f"
-	pronunciations["g"] = "g"
-	pronunciations["hh"] = "h"
+	cmuToSlavicPronunciations["f"] = "f"
+	cmuToSlavicPronunciations["g"] = "g"
+	cmuToSlavicPronunciations["hh"] = "h"
 
-	pronunciations["ih0"] = "i"
-	pronunciations["ih1"] = "I"
-	pronunciations["ih2"] = "I"
+	cmuToSlavicPronunciations["ih0"] = "i"
+	cmuToSlavicPronunciations["ih1"] = "I"
+	cmuToSlavicPronunciations["ih2"] = "I"
 
-	pronunciations["iy0"] = "i"
-	pronunciations["iy1"] = "Í"
-	pronunciations["iy2"] = "Í"
+	cmuToSlavicPronunciations["iy0"] = "i"
+	cmuToSlavicPronunciations["iy1"] = "Í"
+	cmuToSlavicPronunciations["iy2"] = "Í"
 
-	pronunciations["jh"] = "dž"
-	pronunciations["k"] = "k"
-	pronunciations["l"] = "l"
-	pronunciations["m"] = "m"
-	pronunciations["n"] = "n"
-	pronunciations["ng"] = "n"
+	cmuToSlavicPronunciations["jh"] = "dž"
+	cmuToSlavicPronunciations["k"] = "k"
+	cmuToSlavicPronunciations["l"] = "l"
+	cmuToSlavicPronunciations["m"] = "m"
+	cmuToSlavicPronunciations["n"] = "n"
+	cmuToSlavicPronunciations["ng"] = "n"
 
-	pronunciations["ow0"] = "ou"
-	pronunciations["ow1"] = "OU"
-	pronunciations["ow2"] = "OU"
+	cmuToSlavicPronunciations["ow0"] = "ou"
+	cmuToSlavicPronunciations["ow1"] = "OU"
+	cmuToSlavicPronunciations["ow2"] = "OU"
 
-	pronunciations["oy0"] = "oj"
-	pronunciations["oy1"] = "OJ"
-	pronunciations["oy2"] = "OJ"
+	cmuToSlavicPronunciations["oy0"] = "oj"
+	cmuToSlavicPronunciations["oy1"] = "OJ"
+	cmuToSlavicPronunciations["oy2"] = "OJ"
 
-	pronunciations["p"] = "p"
-	pronunciations["r"] = "r"
-	pronunciations["s"] = "s"
-	pronunciations["sh"] = "š"
-	pronunciations["t"] = "t"
-	pronunciations["th"] = "t"
+	cmuToSlavicPronunciations["p"] = "p"
+	cmuToSlavicPronunciations["r"] = "r"
+	cmuToSlavicPronunciations["s"] = "s"
+	cmuToSlavicPronunciations["sh"] = "š"
+	cmuToSlavicPronunciations["t"] = "t"
+	cmuToSlavicPronunciations["th"] = "t"
 
-	pronunciations["uh0"] = "u"
-	pronunciations["uh1"] = "U"
-	pronunciations["uh2"] = "U"
+	cmuToSlavicPronunciations["uh0"] = "u"
+	cmuToSlavicPronunciations["uh1"] = "U"
+	cmuToSlavicPronunciations["uh2"] = "U"
 
-	pronunciations["uw0"] = "u"
-	pronunciations["uw1"] = "U"
-	pronunciations["uw2"] = "U"
+	cmuToSlavicPronunciations["uw0"] = "u"
+	cmuToSlavicPronunciations["uw1"] = "U"
+	cmuToSlavicPronunciations["uw2"] = "U"
 
-	pronunciations["v"] = "v"
-	pronunciations["w"] = "w"
-	pronunciations["y"] = "j"
-	pronunciations["z"] = "z"
-	pronunciations["zh"] = "ž"
+	cmuToSlavicPronunciations["v"] = "v"
+	cmuToSlavicPronunciations["w"] = "w"
+	cmuToSlavicPronunciations["y"] = "j"
+	cmuToSlavicPronunciations["z"] = "z"
+	cmuToSlavicPronunciations["zh"] = "ž"
 }
 
 // getPronunciation gets the slavic pronunciation from the given CMU pronunciation
 func getPronunciation(cmu string) string {
-	if pronunciations == nil {
+	if cmuToSlavicPronunciations == nil {
 		initializePronunciation()
 	}
 
 	var builder strings.Builder
 	cmuSymbols := strings.Split(cmu, " ")
 	for _, symbol := range cmuSymbols {
-		builder.WriteString(pronunciations[symbol])
+		builder.WriteString(cmuToSlavicPronunciations[symbol])
 	}
 
 	return builder.String()
@@ -121,4 +125,36 @@ func getPronunciation(cmu string) string {
 
 func isPronunciationVowel(r rune) bool {
 	return r == 'a' || r == 'á' || r == 'ä' || r == 'ö' || r == 'o' || r == 'u' || r == 'i' || r == 'í' || r == 'e'
+}
+
+func Pronounce(line string) string {
+	if pronunciations == nil {
+		pronunciations = make(map[string]string)
+		pronFilename := DataFolder + "slavic-pronunciations.csv"
+		pronFile, err := os.Open(pronFilename)
+		if err != nil {
+			log.Fatal("Couldn't open", pronFilename, err)
+		}
+
+		pronScanner := bufio.NewScanner(pronFile)
+		for pronScanner.Scan() {
+			line := pronScanner.Text()
+			fragments := strings.Split(line, ";")
+			pronunciations[fragments[0]] = fragments[1]
+		}
+		pronFile.Close()
+	}
+
+	var sb strings.Builder
+	words := strings.Split(line, " ")
+	for _, word := range words {
+		pronunciation, found := pronunciations[word]
+		if found {
+			sb.WriteString(pronunciation)
+		} else {
+			sb.WriteString(word) // TODO fix if we don't have pronunciation
+		}
+	}
+
+	return sb.String()
 }

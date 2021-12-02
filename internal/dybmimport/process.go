@@ -103,7 +103,7 @@ func createSlavicPronuncation() {
 		cmuDict[fragments[0]] = fragments[1]
 
 		p := getPronunciation(fragments[1])
-		r := extractRhyme(p)
+		r := ExtractRhyme(p)
 
 		pronFile.Write([]byte(fragments[0]))
 		pronFile.Write(semicolonSeparator[:])
@@ -295,7 +295,7 @@ func createFinalNgramsFile(n string) {
 				frequency = 100
 			}
 
-			rhyme := extractRhyme(sb.String())
+			rhyme := ExtractRhyme(sb.String())
 
 			bufferBuilder.WriteString(ngram)
 			bufferBuilder.WriteByte(semicolonSeparator[0])

@@ -52,7 +52,11 @@
             
             data.lines.forEach(line => {
                 var paragraph = document.createElement("div");
-                paragraph.innerHTML = "<div class=\"row lyrics-line\"><div class=\"col-2 line-number\">" + line.number + "</div><div class=\"col-9\">" + line.line + "</div><div class=\"col-1 syllables\">" + line.syllables + "</div></div>";
+                paragraph.innerHTML = "<div class=\"row lyrics-line\"><div class=\"col-2 line-number\">"
+                    + line.number + "</div><div class=\"col-8\">" 
+                    + line.line + "</div><div class=\"col-1 syllables\">" 
+                    + line.syllables + "</div><div class=\"col-1 rhyme\">" 
+                    + line.rhyme_id + "</div></div>";
                 resultsDiv.appendChild(paragraph);
             })
         })

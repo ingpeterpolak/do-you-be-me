@@ -290,13 +290,13 @@ func reduceSoundalikes(pronunciation string) string {
 	return result
 }
 
-// extractRhyme extracts the syllables that are used in rhymes
+// ExtractRhyme extracts the syllables that are used in rhymes
 // it tries to detect and return the last two syllables
 // as for vowels and consonants, two situations can occur
 // 1: ending with a consontant(s), e. g. heliport (returns iport)
 // 2: ending with a vowel(s), e. g. factory (returns tory)
 // the syllables are normalized for rhyming, e.g. brad and brat are the same rhyme, returns brat
-func extractRhyme(pronunciation string) Rhyme {
+func ExtractRhyme(pronunciation string) Rhyme {
 	tail := getLastSyllables(strings.ToLower(pronunciation), 4)
 	strongRhyme := reduceSoundalikes(tail)
 	averageRhyme := getLastSyllables(strongRhyme, 3)
