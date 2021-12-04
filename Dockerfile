@@ -32,5 +32,7 @@ COPY --from=build /app ./app
 COPY web/template/index.gohtml ./index.gohtml
 COPY web/assets ./assets
 COPY internal/dybmimport/data ./data
+COPY internal/dybmsyllable/data ./data
+COPY internal/dybmpronounce/data ./data
 
 ENTRYPOINT ["./app"]
