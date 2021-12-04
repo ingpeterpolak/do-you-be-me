@@ -1,4 +1,4 @@
-package dybmimport
+package dybmpronounce
 
 import (
 	"bufio"
@@ -7,15 +7,38 @@ import (
 	"strings"
 )
 
-var cmuToSlavicPronunciations map[string]string
-var pronunciations map[string]string
+var DataFolder string
 
-func isVowel(b byte) bool {
-	r := string(b)
-	return r == "a" || r == "e" || r == "i" || r == "o" || r == "u" || r == "y" || r == "ï" || r == "î" || r == "é" || r == "ê" || r == "è" || r == "à" || r == "â" || r == "ô"
+var cmuToSlavicPronunciations map[string]string
+var pronouncedWords map[string]string
+
+func Setup(dataFolder string) {
+	DataFolder = dataFolder
+
+	initWords()
+	initCmuToSlavic()
 }
 
-func initializePronunciation() {
+func initWords() {
+	pronouncedWords = make(map[string]string)
+
+	filename := DataFolder + "slavic-pronunciations.csv"
+	file, err := os.Open(filename)
+	if err != nil {
+		log.Fatal("Couldn't open", filename, err)
+	}
+
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := scanner.Text()
+		fragments := strings.Split(line, ";")
+
+		pronouncedWords[fragments[0]] = fragments[1]
+	}
+	file.Close()
+}
+
+func initCmuToSlavic() {
 	cmuToSlavicPronunciations = make(map[string]string)
 
 	cmuToSlavicPronunciations["aa0"] = "a"
@@ -108,12 +131,8 @@ func initializePronunciation() {
 	cmuToSlavicPronunciations["zh"] = "ž"
 }
 
-// getPronunciation gets the slavic pronunciation from the given CMU pronunciation
-func getPronunciation(cmu string) string {
-	if cmuToSlavicPronunciations == nil {
-		initializePronunciation()
-	}
-
+// cmuToSlavic gets the slavic pronunciation from the given CMU pronunciation
+func cmuToSlavic(cmu string) string {
 	var builder strings.Builder
 	cmuSymbols := strings.Split(cmu, " ")
 	for _, symbol := range cmuSymbols {
@@ -123,32 +142,53 @@ func getPronunciation(cmu string) string {
 	return builder.String()
 }
 
-func isPronunciationVowel(r rune) bool {
-	return r == 'a' || r == 'á' || r == 'ä' || r == 'ö' || r == 'o' || r == 'u' || r == 'i' || r == 'í' || r == 'e'
+func GetPronouncedWords() map[string]string {
+	return pronouncedWords
+}
+
+func CreateSlavicPronuncationFile() {
+	cmuDictFilename := DataFolder + "cmudict-0.7b.csv"
+	cmuDictFile, err := os.Open(cmuDictFilename)
+	if err != nil {
+		log.Fatal("CMU Dict data file not present", cmuDictFilename, err)
+	}
+
+	var semicolonSeparator = [...]byte{59}
+	var newLineSeparator = [...]byte{10}
+	pronFilename := DataFolder + "slavic-pronunciations.csv"
+	pronFile, err := os.Create(pronFilename)
+	if err != nil {
+		log.Fatal("Couldn't create", pronFilename, err)
+	}
+
+	cmuDict := make(map[string]string)
+	cmuDictScanner := bufio.NewScanner(cmuDictFile)
+	for cmuDictScanner.Scan() {
+		line := cmuDictScanner.Text()
+		fragments := strings.Split(line, ";")
+
+		if containsParenthesis(fragments[0]) {
+			continue
+		}
+
+		cmuDict[fragments[0]] = fragments[1]
+
+		p := cmuToSlavic(fragments[1])
+
+		pronFile.Write([]byte(fragments[0]))
+		pronFile.Write(semicolonSeparator[:])
+		pronFile.Write([]byte(p))
+		pronFile.Write(newLineSeparator[:])
+	}
+	pronFile.Close()
+	cmuDictFile.Close()
 }
 
 func Pronounce(line string) string {
-	if pronunciations == nil {
-		pronunciations = make(map[string]string)
-		pronFilename := DataFolder + "slavic-pronunciations.csv"
-		pronFile, err := os.Open(pronFilename)
-		if err != nil {
-			log.Fatal("Couldn't open", pronFilename, err)
-		}
-
-		pronScanner := bufio.NewScanner(pronFile)
-		for pronScanner.Scan() {
-			line := pronScanner.Text()
-			fragments := strings.Split(line, ";")
-			pronunciations[fragments[0]] = fragments[1]
-		}
-		pronFile.Close()
-	}
-
 	var sb strings.Builder
 	words := strings.Split(line, " ")
 	for _, word := range words {
-		pronunciation, found := pronunciations[word]
+		pronunciation, found := pronouncedWords[word]
 		if found {
 			sb.WriteString(pronunciation)
 		} else {

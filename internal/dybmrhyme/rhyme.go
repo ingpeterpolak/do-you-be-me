@@ -1,4 +1,4 @@
-package dybmimport
+package dybmrhyme
 
 import (
 	"strings"
@@ -307,5 +307,11 @@ func ExtractRhyme(pronunciation string) Rhyme {
 	rhyme.AverageRhyme = averageRhyme
 	rhyme.WeakRhyme = weakRhyme
 
+	return rhyme
+}
+
+// GuessRhyme extracts the weakest rhyme for comparison between two lines
+func GuessRhyme(pronunciation string) string {
+	rhyme := getLastSyllables(strings.ToLower(pronunciation), 1)
 	return rhyme
 }

@@ -3,6 +3,8 @@ package main
 import (
 	"github.com/ingpeterpolak/do-you-be-me/internal/dybmapi"
 	"github.com/ingpeterpolak/do-you-be-me/internal/dybmimport"
+	"github.com/ingpeterpolak/do-you-be-me/internal/dybmpronounce"
+	"github.com/ingpeterpolak/do-you-be-me/internal/dybmsyllable"
 
 	"log"
 	"net/http"
@@ -25,16 +27,42 @@ func mapHandlers() {
 	http.HandleFunc("/process", dybmimport.HandleProcess)
 }
 
+// setupSyllables sets the correct data folder for both local debugging and production run
+func setupSyllables() {
+	dataFolder := "./data/"
+
+	// look for the templates elsewhere if we're debugging locally on Windows
+	if localDebug {
+		dataFolder = "../../internal/dybmsyllable/data/"
+	}
+
+	dybmsyllable.Setup(dataFolder)
+}
+
+// setupSyllables sets the correct data folder for both local debugging and production run
+func setupPronounce() {
+	dataFolder := "./data/"
+
+	// look for the templates elsewhere if we're debugging locally on Windows
+	if localDebug {
+		dataFolder = "../../internal/dybmpronounce/data/"
+	}
+
+	dybmpronounce.Setup(dataFolder)
+}
+
 // setupApi sets the correct template folder for both local debugging and production run
 func setupApi() {
 	templateFolder := "./"
+	dataFolder := "./data/"
 
 	// look for the templates elsewhere if we're debugging locally on Windows
 	if localDebug {
 		templateFolder = "../../web/template/"
+		dataFolder = "../../internal/dybmapi/data/"
 	}
 
-	dybmapi.Setup(templateFolder, assetsFolder)
+	dybmapi.Setup(templateFolder, assetsFolder, dataFolder)
 }
 
 // setupApi sets the correct template folder for both local debugging and production run
@@ -78,8 +106,12 @@ func main() {
 		assetsFolder = "../../web/assets"
 	}
 
+	setupSyllables()
+	setupPronounce()
+
 	setupApi()
 	setupImport()
+
 	mapHandlers()
 
 	err := startServer()

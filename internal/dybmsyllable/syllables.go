@@ -1,4 +1,4 @@
-package dybmimport
+package dybmsyllable
 
 import (
 	"bufio"
@@ -9,6 +9,11 @@ import (
 )
 
 var wordsWithSyllableCount map[string]int
+var DataFolder string
+
+func Setup(dataFolder string) {
+	DataFolder = dataFolder
+}
 
 // initializeKnownSyllables initializes the syllable count map and reads the known words from the data file
 func initializeKnownSyllables() {

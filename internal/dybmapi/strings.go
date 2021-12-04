@@ -43,19 +43,3 @@ func removeSpecialCharsFromLyrics(s string) string {
 		s,
 	)
 }
-
-func getNextRhymeId(lastRhymeId string) string {
-	if lastRhymeId == "" {
-		return "A"
-	}
-
-	result := "Z"
-	rhymeIds := "ABCDEFGHIJKLMNOPQRSTUVWZ"
-	for i := 0; i < len(rhymeIds)-2; i++ {
-		if lastRhymeId == rhymeIds[i:i+1] {
-			result = rhymeIds[i+1 : i+2]
-		}
-	}
-
-	return result
-}

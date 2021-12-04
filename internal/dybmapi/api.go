@@ -8,16 +8,16 @@ import (
 	"net/http"
 	"os"
 	"strings"
-
-	"github.com/ingpeterpolak/do-you-be-me/internal/dybmimport"
 )
 
 var TemplateFolder string
 var AssetsFolder string
+var DataFolder string
 
-func Setup(templateFolder, assetsFolder string) {
+func Setup(templateFolder, assetsFolder, dataFolder string) {
 	TemplateFolder = templateFolder
 	AssetsFolder = assetsFolder
+	DataFolder = dataFolder
 }
 
 func sendFavicon(w http.ResponseWriter) {
@@ -69,60 +69,10 @@ func HandlePimp(w http.ResponseWriter, r *http.Request) {
 	w.Header().Add("Content-type", "application/json")
 
 	lyrics := r.URL.Query().Get("lyrics")
-	lines := strings.Split(lyrics, "\n")
-
-	var lastRhymeId = ""
-	var pimpedLines []PimpedLine
-	var rhymes []Rhyme
-	for i, s := range lines {
-
-		line := removeSpecialCharsFromLyrics(s)
-		pureWords := removeNonAlphanumeric(line)
-
-		if pureWords == "" {
-			continue
-		}
-
-		pronunciation := dybmimport.Pronounce(pureWords)
-		extractedRhyme := dybmimport.ExtractRhyme(pronunciation)
-
-		words := strings.Split(pureWords, " ")
-		syllablesCount := 0
-		for _, word := range words {
-			count, _ := dybmimport.CountSyllables(word)
-			syllablesCount += count
-		}
-
-		foundRhymeId := ""
-		for _, rhyme := range rhymes {
-			if extractedRhyme.WeakRhyme == rhyme.Rhyme {
-				foundRhymeId = rhyme.Id
-				break
-			}
-		}
-
-		if foundRhymeId == "" {
-			lastRhymeId = getNextRhymeId(lastRhymeId)
-
-			var rhyme Rhyme
-			rhyme.Id = lastRhymeId
-			rhyme.Rhyme = extractedRhyme.WeakRhyme
-
-			rhymes = append(rhymes, rhyme)
-			foundRhymeId = rhyme.Id
-		}
-
-		var pimpedLine PimpedLine
-		pimpedLine.Number = i + 1
-		pimpedLine.Line = line
-		pimpedLine.Syllables = syllablesCount
-		pimpedLine.RhymeId = foundRhymeId
-
-		pimpedLines = append(pimpedLines, pimpedLine)
-	}
+	lines := analyzeLines(strings.Split(lyrics, "\n"))
 
 	var pimpedLyrics PimpedLyrics
-	pimpedLyrics.Lines = pimpedLines
+	pimpedLyrics.Lines = lines
 
 	result, err := json.MarshalIndent(pimpedLyrics, "", "")
 

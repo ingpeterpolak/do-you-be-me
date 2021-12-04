@@ -13,25 +13,15 @@ import (
 	"strings"
 
 	"cloud.google.com/go/bigquery"
+	"github.com/ingpeterpolak/do-you-be-me/internal/dybmpronounce"
+	"github.com/ingpeterpolak/do-you-be-me/internal/dybmrhyme"
+	"github.com/ingpeterpolak/do-you-be-me/internal/dybmsyllable"
 	"google.golang.org/api/iterator"
 )
 
 func deleteWordsWithoutPronunciation() {
-	pronFilename := DataFolder + "slavic-pronunciations.csv"
-	pronFile, err := os.Open(pronFilename)
-	if err != nil {
-		log.Fatal("Couldn't open", pronFilename, err)
-	}
-
-	var pronWords []string
 	var objectsToDelete []string
-	pronScanner := bufio.NewScanner(pronFile)
-	for pronScanner.Scan() {
-		line := pronScanner.Text()
-		fragments := strings.Split(line, ";")
-		pronWords = append(pronWords, fragments[0])
-	}
-	pronFile.Close()
+	pronouncedWords := dybmpronounce.GetPronouncedWords()
 
 	notFoundCount := 0
 	allCount := 0
@@ -50,13 +40,7 @@ func deleteWordsWithoutPronunciation() {
 
 		word := attrs.Name[0 : len(attrs.Name)-4] // drop the .csv
 
-		wordFound := false
-		for _, pronWord := range pronWords {
-			if pronWord == word {
-				wordFound = true
-			}
-		}
-
+		_, wordFound := pronouncedWords[word]
 		if !wordFound {
 			log.Println("Word", word, "not found")
 			objectsToDelete = append(objectsToDelete, word+".csv")
@@ -73,51 +57,6 @@ func deleteWordsWithoutPronunciation() {
 	log.Println(" Deleted.")
 
 	log.Println("Done.", notFoundCount, "words not found out of", allCount)
-}
-
-func createSlavicPronuncation() {
-	cmuDictFilename := DataFolder + "cmudict-0.7b.csv"
-	cmuDictFile, err := os.Open(cmuDictFilename)
-	if err != nil {
-		log.Fatal("CMU Dict data file not present", cmuDictFilename, err)
-	}
-
-	var semicolonSeparator = [...]byte{59}
-	var newLineSeparator = [...]byte{10}
-	pronFilename := DataFolder + "slavic-pronunciations.csv"
-	pronFile, err := os.Create(pronFilename)
-	if err != nil {
-		log.Fatal("Couldn't create", pronFilename, err)
-	}
-
-	cmuDict := make(map[string]string)
-	cmuDictScanner := bufio.NewScanner(cmuDictFile)
-	for cmuDictScanner.Scan() {
-		line := cmuDictScanner.Text()
-		fragments := strings.Split(line, ";")
-
-		if containsParenthesis(fragments[0]) {
-			continue
-		}
-
-		cmuDict[fragments[0]] = fragments[1]
-
-		p := getPronunciation(fragments[1])
-		r := ExtractRhyme(p)
-
-		pronFile.Write([]byte(fragments[0]))
-		pronFile.Write(semicolonSeparator[:])
-		pronFile.Write([]byte(p))
-		pronFile.Write(semicolonSeparator[:])
-		pronFile.Write([]byte(r.StrongRhyme))
-		pronFile.Write(semicolonSeparator[:])
-		pronFile.Write([]byte(r.AverageRhyme))
-		pronFile.Write(semicolonSeparator[:])
-		pronFile.Write([]byte(r.WeakRhyme))
-		pronFile.Write(newLineSeparator[:])
-	}
-	pronFile.Close()
-	cmuDictFile.Close()
 }
 
 func createWordRelations() string {
@@ -205,19 +144,7 @@ func createWordRelations() string {
 }
 
 func createFinalNgramsFile(n string) {
-	pronDict := make(map[string]string)
-	pronFilename := DataFolder + "slavic-pronunciations.csv"
-	pronFile, err := os.Open(pronFilename)
-	if err != nil {
-		log.Fatal("Slavic pronunciation data file not present", pronFilename, err)
-	}
-	pronScanner := bufio.NewScanner(pronFile)
-	for pronScanner.Scan() {
-		line := pronScanner.Text()
-		fragments := strings.Split(line, ";")
-		pronDict[fragments[0]] = fragments[1]
-	}
-	pronFile.Close()
+	pronouncedWords := dybmpronounce.GetPronouncedWords()
 
 	ctx, bucket, _ := prepareContext()
 
@@ -271,13 +198,13 @@ func createFinalNgramsFile(n string) {
 		wasFound := true
 		for _, word := range words {
 			var pronunciation string
-			pronunciation, wasFound = pronDict[strings.ToLower(word)]
+			pronunciation, wasFound = pronouncedWords[strings.ToLower(word)]
 			if !wasFound {
 				break
 			}
 
 			sb.WriteString(pronunciation)
-			syllables, _ := CountSyllables(word)
+			syllables, _ := dybmsyllable.CountSyllables(word)
 			ngramSyllables += syllables
 		}
 
@@ -295,7 +222,7 @@ func createFinalNgramsFile(n string) {
 				frequency = 100
 			}
 
-			rhyme := ExtractRhyme(sb.String())
+			rhyme := dybmrhyme.ExtractRhyme(sb.String())
 
 			bufferBuilder.WriteString(ngram)
 			bufferBuilder.WriteByte(semicolonSeparator[0])
@@ -369,7 +296,7 @@ func createNgramsBigQuery(n string) {
 	previousRhyme := ""
 	ignoreRestOfRhymes := false
 	for {
-		var row Rhyme
+		var row dybmrhyme.Rhyme
 		err := rows.Next(&row)
 		if err == iterator.Done {
 			break
@@ -455,7 +382,7 @@ func HandleProcess(w http.ResponseWriter, r *http.Request) {
 		deleteWordsWithoutPronunciation()
 	}
 	if action == "create-slavic-pronuncation" {
-		createSlavicPronuncation()
+		dybmpronounce.CreateSlavicPronuncationFile()
 	}
 	if action == "create-word-relations" {
 		result = createWordRelations()
