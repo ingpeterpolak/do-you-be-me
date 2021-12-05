@@ -20,3 +20,23 @@ func GetNextRhymeId(lastRhymeId string) string {
 
 	return result
 }
+
+func ResetRhymeIds(originalIds []string) []string {
+	currentRhymeId := ""
+	substitutes := make(map[string]string)
+	for _, id := range originalIds {
+		_, found := substitutes[id]
+		if !found {
+			currentRhymeId = GetNextRhymeId(currentRhymeId)
+			substitutes[id] = currentRhymeId
+		}
+	}
+
+	var resetIds []string
+	for _, id := range originalIds {
+		newId := substitutes[id]
+		resetIds = append(resetIds, newId)
+	}
+
+	return resetIds
+}
