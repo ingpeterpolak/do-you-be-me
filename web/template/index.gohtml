@@ -52,13 +52,72 @@
             
             data.lines.forEach(line => {
                 var paragraph = document.createElement("div");
-                paragraph.innerHTML = "<div class=\"row lyrics-line\"><div class=\"col-2 line-number\">"
-                    + line.number + "</div><div class=\"col-8\">" 
-                    + line.line + "</div><div class=\"col-1 syllables\">" 
-                    + line.syllables + "</div><div class=\"col-1 rhyme\">" 
-                    + line.rhyme_id + "</div></div>";
+                if (line.line == "") {
+                    paragraph.innerHTML = "<div class=\"row lyrics-line\"></div>";
+                } else {
+                    paragraph.innerHTML = "<div class=\"row lyrics-line\" id=\"line-" + line.number + "\">"
+                        + "<div class=\"col-2 line-number\">" + line.number + "</div>"
+                        + "<div class=\"col-7 line\">" + line.line + "</div>"
+                        + "<div class=\"col-1 replace\"><button class=\"btn btn-primary\" onclick=\"javascript:prepareReplace('line-" + line.number + "')\">Replace</button></div>"
+                        + "<div class=\"col-1 choose hidden\"><button class=\"btn btn-secondary\" onclick=\"javascript:finishReplace('line-" + line.number + "')\">&lt;--</button></div>"
+                        + "<div class=\"col-1 syllables\">" + line.syllables+ "</div>" 
+                        + "<div class=\"col-1 rhyme\">" + line.rhyme_id + "</div>"
+                        + "</div>";
+                }
                 resultsDiv.appendChild(paragraph);
             })
+        })
+    }
+
+    var lineIdToReplace;
+
+    function prepareReplace(lineId) {
+        lineIdToReplace = lineId;
+
+        var lineElements = document.querySelectorAll("div.lyrics-line div.replace");
+        [].forEach.call(lineElements, function(element) {
+            element.classList.add("hidden");
+        });        
+
+        lineElements = document.querySelectorAll("div.lyrics-line div.choose");
+        [].forEach.call(lineElements, function(element) {
+            element.classList.remove("hidden");
+        });        
+    }
+
+    function finishReplace(lineId) {
+        var lineElements = document.querySelectorAll("div.lyrics-line div.replace");
+        [].forEach.call(lineElements, function(element) {
+            element.classList.remove("hidden");
+        });        
+
+        lineElements = document.querySelectorAll("div.lyrics-line div.choose");
+        [].forEach.call(lineElements, function(element) {
+            element.classList.add("hidden");
+        });
+
+        var words = "";
+        lineElements = document.querySelectorAll("div.lyrics-line div.line");
+        [].forEach.call(lineElements, function(element) {
+            if (element.innerHTML != "") {
+                words = words.concat(element.innerHTML.toLowerCase()).concat(" ")
+                }
+        });
+
+        var syllables = document.querySelector("#" + lineId + " div.syllables").innerHTML;
+        var rhyme = document.querySelector("#" + lineId + " div.rhyme").innerHTML;
+        var line = document.querySelector("#" + lineId + " div.line").innerHTML;
+
+        var lineElement = document.querySelector("#" + lineIdToReplace + " div.line");
+        var syllablesElement = document.querySelector("#" + lineIdToReplace + " div.syllables");
+        var rhymeElement = document.querySelector("#" + lineIdToReplace + " div.rhyme");
+        
+        fetch("/line?o=" + line + "&s=" + syllables + "&w=" + words)
+        .then(response => response.json())
+        .then(data => {
+            lineElement.innerHTML = data.line
+            syllablesElement.innerHTML = data.syllables
+            rhymeElement.innerHTML = rhyme
         })
     }
 

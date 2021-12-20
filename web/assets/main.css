@@ -2,6 +2,10 @@
     clear: both;
 }
 
+.hidden {
+    display: none
+}
+
 div.lyrics-main {
     background: #fcfcfc;
     padding: 10pt;
@@ -9,7 +13,10 @@ div.lyrics-main {
 
 div.lyrics-line {
     background: white;
-    height: 20pt;
+    height: 32pt;
+}
+
+div.lyrics-line div.line {
     border-bottom: 1pt dotted #ddd;
 }
 

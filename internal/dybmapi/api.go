@@ -84,3 +84,25 @@ func HandlePimp(w http.ResponseWriter, r *http.Request) {
 
 	log.Println("DONE handling", r.URL)
 }
+
+func HandleLine(w http.ResponseWriter, r *http.Request) {
+	log.Println("START handling", r.URL)
+
+	w.Header().Add("Content-type", "application/json")
+
+	originalLine := r.URL.Query().Get("o")
+	syllableCount := r.URL.Query().Get("s")
+	words := r.URL.Query().Get("w")
+
+	line := getLine(originalLine, syllableCount, words)
+
+	result, err := json.MarshalIndent(line, "", "")
+
+	if err != nil {
+		log.Fatal("Error:", err)
+	}
+
+	w.Write(result)
+
+	log.Println("DONE handling", r.URL)
+}

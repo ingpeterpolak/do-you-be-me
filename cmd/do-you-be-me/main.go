@@ -21,6 +21,7 @@ func mapHandlers() {
 
 	http.HandleFunc("/", dybmapi.HandleRoot)
 	http.HandleFunc("/pimp", dybmapi.HandlePimp)
+	http.HandleFunc("/line", dybmapi.HandleLine)
 
 	http.HandleFunc("/import", dybmimport.HandleImport)
 	http.HandleFunc("/combine-import", dybmimport.HandleCombineImport)
