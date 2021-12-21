@@ -90,11 +90,11 @@ func HandleLine(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Add("Content-type", "application/json")
 
-	originalLine := r.URL.Query().Get("o")
+	lineToRhyme := r.URL.Query().Get("r")
 	syllableCount := r.URL.Query().Get("s")
 	words := r.URL.Query().Get("w")
 
-	line := getLine(originalLine, syllableCount, words)
+	line := getLine(lineToRhyme, syllableCount, words)
 
 	result, err := json.MarshalIndent(line, "", "")
 

@@ -1,5 +1,8 @@
 package dybmapi
 
+const bucketName = "dybm_words"
+const maxRelatedWordsCount = 20 // there's up to 20 related words for each word
+
 type IndexData struct {
 	Message string `json:"message"`
 }

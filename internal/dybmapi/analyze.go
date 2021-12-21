@@ -84,7 +84,7 @@ func analyzeLines(lines []string) []PimpedLine {
 	for _, s := range lines {
 
 		line := removeSpecialCharsFromLyrics(s)
-		pureWords := removeNonAlphanumeric(line)
+		pureWords := strings.Join(getPureWords(line), " ")
 
 		var pimpedLine PimpedLine
 		if pureWords != "" {

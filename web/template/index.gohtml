@@ -112,7 +112,7 @@
         var syllablesElement = document.querySelector("#" + lineIdToReplace + " div.syllables");
         var rhymeElement = document.querySelector("#" + lineIdToReplace + " div.rhyme");
         
-        fetch("/line?o=" + line + "&s=" + syllables + "&w=" + words)
+        fetch("/line?r=" + line + "&s=" + syllables + "&w=" + words)
         .then(response => response.json())
         .then(data => {
             lineElement.innerHTML = data.line

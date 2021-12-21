@@ -5,8 +5,8 @@ import (
 	"unicode"
 )
 
-// removeNonAlphanumeric removes all non-alphanumeric chars
-func removeNonAlphanumeric(s string) string {
+// getPureWords removes all non-alphanumeric chars and returns pure words
+func getPureWords(s string) []string {
 	line := strings.Map(
 		func(r rune) rune {
 			ch := string(r)
@@ -18,16 +18,15 @@ func removeNonAlphanumeric(s string) string {
 		s,
 	)
 
-	var sb strings.Builder
+	var result []string
 	words := strings.Split(line, " ")
 	for _, word := range words {
 		if word != "" {
-			sb.WriteString(word)
-			sb.WriteString(" ")
+			result = append(result, word)
 		}
 	}
 
-	return sb.String()
+	return result
 }
 
 // removeSpecialCharsFromLyrics removes chars that (usually) don't belong to a song lyrics
